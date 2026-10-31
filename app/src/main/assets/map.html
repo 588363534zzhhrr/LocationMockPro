@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Interactive Map Pro</title>
+  <link rel="stylesheet" href="file:///android_asset/leaflet/leaflet.css" />
+  <script src="file:///android_asset/leaflet/leaflet.js"></script>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #map {
+      height: 100%;
+      width: 100%;
+      background: #e5e3df;
+    }
+
+    /* Top Search Bar */
+    .search-box {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.96);
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      padding: 2px 6px;
+      backdrop-filter: blur(4px);
+      max-width: 260px;
+    }
+    .search-input {
+      border: none;
+      outline: none;
+      font-size: 13px;
+      padding: 6px 8px;
+      width: 180px;
+      background: transparent;
+      color: #333;
+    }
+    .search-btn {
+      background: #1976D2;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .search-btn:active {
+      background: #1565C0;
+    }
+
+    /* Floating control bar (Right) */
+    .map-controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+    .ctrl-btn {
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid rgba(0, 0, 0, 0.15);
+      border-radius: 8px;
+      padding: 7px 11px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #333;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      backdrop-filter: blur(4px);
+    }
+    .ctrl-btn:active {
+      background: #e0e0e0;
+      transform: scale(0.97);
+    }
+    .ctrl-btn.active-btn {
+      background: #E8F5E9;
+      color: #2E7D32;
+      border-color: #81C784;
+    }
+
+    /* Bottom hint banner */
+    .hint-banner {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      background: rgba(33, 33, 33, 0.88);
+      color: #ffffff;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      pointer-events: none;
+      white-space: nowrap;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      backdrop-filter: blur(4px);
+    }
+
+    /* Custom Marker Styles */
+    .waypoint-pin {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      color: #fff;
+      font-size: 12px;
+      font-weight: bold;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+      border: 2px solid #ffffff;
+      transition: transform 0.15s ease;
+    }
+    .pin-start {
+      background: #2E7D32; /* Green */
+    }
+    .pin-mid {
+      background: #1976D2; /* Blue */
+    }
+    .pin-end {
+      background: #E65100; /* Orange */
+    }
+    .pin-single {
+      background: #D32F2F; /* Red */
+    }
+
+    /* Runner / Vehicle simulated position marker */
+    .sim-cursor {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: #00E676;
+      border: 3px solid #ffffff;
+      box-shadow: 0 0 14px rgba(0, 230, 118, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .sim-arrow {
+      width: 0;
+      height: 0;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-bottom: 14px solid #1a237e;
+      position: absolute;
+      top: 5px;
+    }
+    .sim-pulse {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: rgba(0, 230, 118, 0.45);
+      animation: pulse 1.5s infinite ease-out;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 0.8; }
+      100% { transform: scale(2.4); opacity: 0; }
+    }
+
+    /* Popup button */
+    .popup-del-btn {
+      margin-top: 6px;
+      padding: 4px 10px;
+      background: #d32f2f;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- Search Box -->
+  <div class="search-box">
+    <input type="text" id="search-input" class="search-input" placeholder="🔍 搜索地标/城市/地点" />
+    <button class="search-btn" onclick="executeSearch()">定位</button>
+  </div>
+
+  <!-- Floating Controls -->
+  <div class="map-controls">
+    <button class="ctrl-btn" id="btn-snap" onclick="toggleRoadSnap()">🛣️ 吸附道路: 关</button>
+    <button class="ctrl-btn" id="btn-follow" onclick="toggleFollow()">🎯 视角跟随: 开</button>
+    <button class="ctrl-btn" id="btn-undo" onclick="undoLast()">↩️ 撤销</button>
+    <button class="ctrl-btn" id="btn-clear" onclick="clearAll()">🗑️ 清空</button>
+    <button class="ctrl-btn" onclick="fitRoute()">🎯 全览</button>
+    <button class="ctrl-btn" onclick="toggleLayer()">🗺️ 图层</button>
+    <button class="ctrl-btn" onclick="toggleExpand()">⛶ 展开</button>
+  </div>
+
+  <div class="hint-banner" id="hint-text">
+    👆 点击地图任意位置添加途经路点
+  </div>
+
+  <script>
+    var map;
+    var currentMode = "route"; // "route" or "single"
+    var waypoints = []; // [{lat, lon, marker}, ...]
+    var routeLine = null;
+    var singleMarker = null;
+    var simMarker = null;
+    var isFollowing = true;
+    var roadSnapEnabled = false;
+    var snapModes = [
+      { id: 'walking', label: '🚶 步行吸附' },
+      { id: 'bike', label: '🚴 骑行吸附' },
+      { id: 'driving', label: '🚗 驾车吸附' }
+    ];
+    var snapModeIndex = 0;
+
+    // 常用城市和地标离线快捷字典
+    var PRESET_GEO = {
+      "北京": [39.9042, 116.4074],
+      "天安门": [39.9088, 116.3975],
+      "奥森": [40.0152, 116.3888],
+      "上海": [31.2304, 121.4737],
+      "外滩": [31.2397, 121.4998],
+      "东方明珠": [31.2398, 121.4997],
+      "陆家嘴": [31.2384, 121.5015],
+      "深圳": [22.5431, 114.0579],
+      "深圳湾": [22.4960, 113.9480],
+      "广州": [23.1291, 113.2644],
+      "广州塔": [23.1065, 113.3245],
+      "杭州": [30.2741, 120.1551],
+      "西湖": [30.2435, 120.1345],
+      "成都": [30.5728, 104.0668],
+      "春熙路": [30.6548, 104.0805],
+      "武汉": [30.5928, 114.3055],
+      "重庆": [29.5630, 106.5516],
+      "西安": [34.3416, 108.9398],
+      "南京": [32.0603, 118.7969],
+      "厦门": [24.4798, 118.0894]
+    };
+
+    // Tile Layers
+    var gaodeVector = L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
+      subdomains: ['1', '2', '3', '4'],
+      maxZoom: 18,
+      minZoom: 3,
+      attribution: '© 高德地图'
+    });
+
+    var gaodeSat = L.tileLayer('https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}', {
+      subdomains: ['1', '2', '3', '4'],
+      maxZoom: 18,
+      minZoom: 3
+    });
+    var gaodeRoad = L.tileLayer('https://webst0{s}.is.autonavi.com/appmaptile?style=8&x={x}&y={y}&z={z}', {
+      subdomains: ['1', '2', '3', '4'],
+      maxZoom: 18,
+      minZoom: 3
+    });
+    var satelliteGroup = L.layerGroup([gaodeSat, gaodeRoad]);
+
+    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+    });
+
+    var currentLayerIndex = 0;
+    var layers = [gaodeVector, satelliteGroup, osmLayer];
+    var layerNames = ["高德地图", "高德卫星", "OSM"];
+
+    function initMap() {
+      map = L.map('map', {
+        center: [40.0138, 116.3835],
+        zoom: 14,
+        zoomControl: false,
+        layers: [gaodeVector]
+      });
+
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+      // 用户主动手势拖动时，自动解除视角强制锁定
+      map.on('dragstart', function() {
+        if (isFollowing) {
+          isFollowing = false;
+          updateFollowBtn();
+        }
+      });
+
+      map.on('click', function(e) {
+        var lat = parseFloat(e.latlng.lat.toFixed(6));
+        var lon = parseFloat(e.latlng.lng.toFixed(6));
+
+        if (currentMode === "route") {
+          if (roadSnapEnabled && waypoints.length > 0) {
+            snapRouteToRoad(waypoints[waypoints.length - 1], { lat: lat, lon: lon });
+          } else {
+            addWaypoint(lat, lon, true);
+          }
+        } else {
+          setSinglePoint(lat, lon, true);
+        }
+      });
+
+      // 绑定回车搜索
+      document.getElementById('search-input').addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') {
+          executeSearch();
+        }
+      });
+    }
+
+    // 搜索执行
+    function executeSearch() {
+      var query = document.getElementById('search-input').value.trim();
+      if (!query) return;
+
+      // 1. 尝试快速匹配本地字典
+      for (var key in PRESET_GEO) {
+        if (query.indexOf(key) !== -1 || key.indexOf(query) !== -1) {
+          var target = PRESET_GEO[key];
+          map.flyTo(target, 15, { duration: 1.2 });
+          showToast("已定位至: " + key);
+          return;
+        }
+      }
+
+      // 2. 尝试解析经纬度格式 "lat, lon"
+      var parts = query.split(/[,，\s]+/);
+      if (parts.length >= 2) {
+        var pLat = parseFloat(parts[0]);
+        var pLon = parseFloat(parts[1]);
+        if (!isNaN(pLat) && !isNaN(pLon) && Math.abs(pLat) <= 90 && Math.abs(pLon) <= 180) {
+          map.flyTo([pLat, pLon], 15, { duration: 1.2 });
+          showToast("已定位至坐标: " + pLat + ", " + pLon);
+          return;
+        }
+      }
+
+      // 3. 在线 Nominatim / OSM 搜索
+      showToast("正在检索: " + query + " ...");
+      var url = "https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(query);
+      fetch(url)
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data && data.length > 0) {
+            var item = data[0];
+            var lat = parseFloat(item.lat);
+            var lon = parseFloat(item.lon);
+            map.flyTo([lat, lon], 15, { duration: 1.2 });
+            showToast("找到目标: " + (item.display_name.split(",")[0] || query));
+          } else {
+            showToast("未找到地点，请尝试输入城市或具体地标");
+          }
+        })
+        .catch(function(err) {
+          showToast("网络搜索暂不可用，请输入常用城市");
+        });
+    }
+
+    // 切换道路沿路吸附（支持 步行 -> 骑行 -> 驾车 -> 关 循环切换）
+    function toggleRoadSnap() {
+      var btn = document.getElementById('btn-snap');
+      if (!roadSnapEnabled) {
+        roadSnapEnabled = true;
+        snapModeIndex = 0;
+        btn.innerText = "🛣️ " + snapModes[snapModeIndex].label;
+        btn.classList.add('active-btn');
+        showToast("已开启真实道路自动吸附: " + snapModes[snapModeIndex].label);
+      } else {
+        snapModeIndex++;
+        if (snapModeIndex < snapModes.length) {
+          btn.innerText = "🛣️ " + snapModes[snapModeIndex].label;
+          showToast("已切换吸附模式: " + snapModes[snapModeIndex].label);
+        } else {
+          roadSnapEnabled = false;
+          snapModeIndex = 0;
+          btn.innerText = "🛣️ 吸附道路: 关";
+          btn.classList.remove('active-btn');
+          showToast("已切换为直线标点模式");
+        }
+      }
+    }
+
+    // 沿马路自动吸附规划路径
+    function snapRouteToRoad(fromPt, toPt) {
+      var profile = snapModes[snapModeIndex].id;
+      showToast("正在规划街道吸附路径 (" + snapModes[snapModeIndex].label + ")...");
+      var osrmUrl = `https://router.project-osrm.org/route/v1/${profile}/${fromPt.lon},${fromPt.lat};${toPt.lon},${toPt.lat}?overview=full&geometries=geojson`;
+
+      var controller = new AbortController();
+      var timeoutId = setTimeout(function() { controller.abort(); }, 3000);
+
+      fetch(osrmUrl, { signal: controller.signal })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          clearTimeout(timeoutId);
+          if (data && data.routes && data.routes.length > 0) {
+            var coords = data.routes[0].geometry.coordinates;
+            // 采样步长（若点太多，每隔 2~3 个点取一个）
+            var step = Math.max(1, Math.floor(coords.length / 15));
+            for (var i = 1; i < coords.length; i += step) {
+              var cLon = parseFloat(coords[i][0].toFixed(6));
+              var cLat = parseFloat(coords[i][1].toFixed(6));
+              addWaypoint(cLat, cLon, false);
+            }
+            // 确保终点加入
+            addWaypoint(toPt.lat, toPt.lon, true);
+            showToast("道路吸附完成，已生成街道拐角路线");
+          } else {
+            addWaypoint(toPt.lat, toPt.lon, true);
+          }
+        })
+        .catch(function() {
+          clearTimeout(timeoutId);
+          // 降级为直接加点
+          addWaypoint(toPt.lat, toPt.lon, true);
+        });
+    }
+
+    // 视角跟随开关
+    function toggleFollow() {
+      isFollowing = !isFollowing;
+      updateFollowBtn();
+      if (isFollowing && simMarker) {
+        map.panTo(simMarker.getLatLng(), { animate: true });
+      }
+    }
+
+    function updateFollowBtn() {
+      var btn = document.getElementById('btn-follow');
+      if (isFollowing) {
+        btn.innerText = "🎯 视角跟随: 开";
+        btn.classList.add('active-btn');
+      } else {
+        btn.innerText = "🎯 视角跟随: 关";
+        btn.classList.remove('active-btn');
+      }
+    }
+
+    function toggleExpand() {
+      if (window.AndroidBridge && window.AndroidBridge.onToggleExpand) {
+        window.AndroidBridge.onToggleExpand();
+      }
+      setTimeout(function() {
+        if (map) map.invalidateSize();
+      }, 300);
+    }
+
+    function toggleLayer() {
+      map.removeLayer(layers[currentLayerIndex]);
+      currentLayerIndex = (currentLayerIndex + 1) % layers.length;
+      map.addLayer(layers[currentLayerIndex]);
+      showToast("切换至: " + layerNames[currentLayerIndex]);
+    }
+
+    function showToast(msg) {
+      var hint = document.getElementById('hint-text');
+      hint.innerText = msg;
+      setTimeout(function() {
+        hint.innerText = currentMode === "route" ? "👆 点击地图任意位置添加途经路点" : "👆 点击地图选取单点定位目标";
+      }, 2500);
+    }
+
+    // Add waypoint in route mode
+    function addWaypoint(lat, lon, notifyNative) {
+      var index = waypoints.length;
+      var marker = createWaypointMarker(lat, lon, index);
+      waypoints.push({ lat: lat, lon: lon, marker: marker });
+      refreshWaypointIndices();
+      redrawRouteLine();
+
+      if (notifyNative && window.AndroidBridge) {
+        window.AndroidBridge.onWaypointAdded(lat, lon, waypoints.length);
+        notifyWaypointsChanged();
+      }
+    }
+
+    function createWaypointMarker(lat, lon, index) {
+      var icon = createPinIcon(index, waypoints.length + 1);
+      var marker = L.marker([lat, lon], {
+        icon: icon,
+        draggable: true
+      }).addTo(map);
+
+      marker.on('dragend', function(e) {
+        var newPos = e.target.getLatLng();
+        var idx = findMarkerIndex(marker);
+        if (idx !== -1) {
+          waypoints[idx].lat = parseFloat(newPos.lat.toFixed(6));
+          waypoints[idx].lon = parseFloat(newPos.lng.toFixed(6));
+          redrawRouteLine();
+          updatePopup(marker, idx);
+          notifyWaypointsChanged();
+        }
+      });
+
+      updatePopup(marker, index);
+      return marker;
+    }
+
+    function updatePopup(marker, index) {
+      var isStart = index === 0;
+      var isEnd = index === waypoints.length - 1 && waypoints.length > 1;
+      var tag = isStart ? "🚩 起点" : (isEnd ? "🏁 终点" : "📍 路点 #" + index);
+      var lat = waypoints[index] ? waypoints[index].lat : marker.getLatLng().lat.toFixed(6);
+      var lon = waypoints[index] ? waypoints[index].lon : marker.getLatLng().lng.toFixed(6);
+
+      var content = `
+        <div style="font-size:13px; min-width:140px;">
+          <b>${tag}</b><br>
+          <span style="color:#666;font-size:11px;">${lat}, ${lon}</span><br>
+          <button class="popup-del-btn" onclick="removeWaypointByIndex(${index})">🗑️ 删除此路点</button>
+        </div>
+      `;
+      marker.bindPopup(content);
+    }
+
+    function createPinIcon(index, total) {
+      var label = "" + (index + 1);
+      var cls = "pin-mid";
+      if (index === 0) {
+        label = "起";
+        cls = "pin-start";
+      } else if (index === total - 1 && total > 1) {
+        label = "终";
+        cls = "pin-end";
+      }
+
+      return L.divIcon({
+        className: 'custom-div-icon',
+        html: `<div class="waypoint-pin ${cls}">${label}</div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+        popupAnchor: [0, -14]
+      });
+    }
+
+    function refreshWaypointIndices() {
+      for (var i = 0; i < waypoints.length; i++) {
+        var wp = waypoints[i];
+        wp.marker.setIcon(createPinIcon(i, waypoints.length));
+        updatePopup(wp.marker, i);
+      }
+    }
+
+    function findMarkerIndex(marker) {
+      for (var i = 0; i < waypoints.length; i++) {
+        if (waypoints[i].marker === marker) return i;
+      }
+      return -1;
+    }
+
+    function removeWaypointByIndex(index) {
+      if (index >= 0 && index < waypoints.length) {
+        map.removeLayer(waypoints[index].marker);
+        waypoints.splice(index, 1);
+        refreshWaypointIndices();
+        redrawRouteLine();
+        notifyWaypointsChanged();
+      }
+    }
+
+    function undoLast() {
+      if (waypoints.length > 0) {
+        var last = waypoints.pop();
+        map.removeLayer(last.marker);
+        refreshWaypointIndices();
+        redrawRouteLine();
+        notifyWaypointsChanged();
+      }
+    }
+
+    function clearAll(notifyNative) {
+      for (var i = 0; i < waypoints.length; i++) {
+        map.removeLayer(waypoints[i].marker);
+      }
+      waypoints = [];
+      if (routeLine) {
+        map.removeLayer(routeLine);
+        routeLine = null;
+      }
+      if (singleMarker) {
+        map.removeLayer(singleMarker);
+        singleMarker = null;
+      }
+      if (notifyNative !== false) {
+        notifyWaypointsChanged();
+      }
+    }
+
+    function redrawRouteLine() {
+      if (routeLine) {
+        map.removeLayer(routeLine);
+        routeLine = null;
+      }
+      if (waypoints.length < 2) return;
+
+      var latlngs = waypoints.map(function(wp) {
+        return [wp.lat, wp.lon];
+      });
+
+      routeLine = L.polyline(latlngs, {
+        color: '#1E88E5',
+        weight: 6,
+        opacity: 0.88,
+        lineJoin: 'round'
+      }).addTo(map);
+    }
+
+    function fitRoute() {
+      if (waypoints.length > 0) {
+        var bounds = L.latLngBounds(waypoints.map(function(wp) { return [wp.lat, wp.lon]; }));
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+      } else if (singleMarker) {
+        map.panTo(singleMarker.getLatLng());
+      }
+    }
+
+    function notifyWaypointsChanged() {
+      if (window.AndroidBridge) {
+        var list = waypoints.map(function(wp) {
+          return { lat: wp.lat, lon: wp.lon };
+        });
+        window.AndroidBridge.onWaypointsUpdated(JSON.stringify(list));
+      }
+    }
+
+    // ================= Native Interface Methods =================
+    window.setRouteWaypoints = function(jsonStr) {
+      try {
+        clearAll(false);
+        var pts = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
+        if (!Array.isArray(pts)) return;
+
+        pts.forEach(function(pt) {
+          addWaypoint(parseFloat(pt.lat), parseFloat(pt.lon), false);
+        });
+        fitRoute();
+        notifyWaypointsChanged();
+      } catch (e) {
+        console.error("setRouteWaypoints err:", e);
+      }
+    };
+
+    window.setMode = function(mode) {
+      currentMode = mode;
+      var undoBtn = document.getElementById('btn-undo');
+      var snapBtn = document.getElementById('btn-snap');
+      var hint = document.getElementById('hint-text');
+
+      if (mode === "single") {
+        undoBtn.style.display = 'none';
+        snapBtn.style.display = 'none';
+        hint.innerText = "👆 点击地图任意位置选取单点模拟目标";
+      } else {
+        undoBtn.style.display = 'flex';
+        snapBtn.style.display = 'flex';
+        hint.innerText = "👆 点击地图任意位置添加途经路点";
+      }
+    };
+
+    window.setSinglePoint = function(lat, lon, notifyNative) {
+      lat = parseFloat(lat.toFixed ? lat.toFixed(6) : lat);
+      lon = parseFloat(lon.toFixed ? lon.toFixed(6) : lon);
+
+      if (singleMarker) {
+        singleMarker.setLatLng([lat, lon]);
+      } else {
+        var icon = L.divIcon({
+          className: 'custom-div-icon',
+          html: `<div class="waypoint-pin pin-single">📍</div>`,
+          iconSize: [30, 30],
+          iconAnchor: [15, 15]
+        });
+        singleMarker = L.marker([lat, lon], { icon: icon, draggable: true }).addTo(map);
+        singleMarker.on('dragend', function(e) {
+          var p = e.target.getLatLng();
+          if (window.AndroidBridge) {
+            window.AndroidBridge.onSinglePointChanged(p.lat, p.lng);
+          }
+        });
+      }
+
+      if (notifyNative && window.AndroidBridge) {
+        window.AndroidBridge.onSinglePointChanged(lat, lon);
+      }
+    };
+
+    window.updateSimPosition = function(lat, lon, bearing) {
+      if (!simMarker) {
+        var icon = L.divIcon({
+          className: 'sim-cursor-icon',
+          html: `
+            <div class="sim-pulse"></div>
+            <div class="sim-cursor" id="sim-icon">
+              <div class="sim-arrow" id="sim-arrow"></div>
+            </div>
+          `,
+          iconSize: [34, 34],
+          iconAnchor: [17, 17]
+        });
+        simMarker = L.marker([lat, lon], { icon: icon, zIndexOffset: 2000 }).addTo(map);
+      } else {
+        simMarker.setLatLng([lat, lon]);
+      }
+
+      var arrow = document.getElementById('sim-arrow');
+      if (arrow) {
+        arrow.style.transform = `rotate(${bearing}deg)`;
+      }
+
+      if (isFollowing) {
+        map.panTo([lat, lon], { animate: true, duration: 0.4 });
+      }
+    };
+
+    window.stopSimPosition = function() {
+      if (simMarker) {
+        map.removeLayer(simMarker);
+        simMarker = null;
+      }
+    };
+
+    window.flyToLocation = function(lat, lon, zoom) {
+      map.flyTo([lat, lon], zoom || 15);
+    };
+
+    window.onload = function() {
+      initMap();
+      if (window.AndroidBridge) {
+        window.AndroidBridge.onMapReady();
+      }
+    };
+  </script>
+</body>
+</html>
