@@ -30,6 +30,7 @@ import android.telephony.gsm.GsmCellLocation
 import de.robv.android.xposed.IXposedHookLoadPackage
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XC_MethodReplacement
+import de.robv.android.xposed.XSharedPreferences
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.callbacks.XC_LoadPackage
@@ -110,8 +111,29 @@ class XposedEntry : IXposedHookLoadPackage {
         cellCid = 1892341
     )
 
+    // LSPosed 原生 XSharedPreferences 实例（用于 Android 11+ 包隔离下的终极只读 IPC 兜底）
+    @Volatile private var xSharedPrefs: XSharedPreferences? = null
+
+    private fun getXSharedPrefs(): XSharedPreferences? {
+        if (xSharedPrefs == null) {
+            synchronized(this) {
+                if (xSharedPrefs == null) {
+                    try {
+                        val prefs = XSharedPreferences("com.antigravity.geospoofer", "location_mock_pro_stealth_prefs")
+                        prefs.makeWorldReadable()
+                        xSharedPrefs = prefs
+                    } catch (_: Throwable) {}
+                }
+            }
+        }
+        return xSharedPrefs
+    }
+
     /**
-     * Listener 线程安全调度包装器：严格按照注册时的 Looper 或 Executor 进行分发投递，严禁后台线程裸调
+     * Listener 线程安全调度包装器：
+     * 1. 采用 WeakReference 持有宿主 LocationListener，提供弱引用双保险，严防第三方 App 忘记注销引发宿主 Activity 内存泄漏
+     * 2. 在分发闭包内部动态二次判空 weakRef.get()，避免投递到 Handler/Executor 消息队列时因强引用闭包阻碍宿主 GC 回收
+     * 3. 严格按照宿主注册时传入的 Looper 或 Executor 原生上下文进行投递，严禁后台线程裸调引发 CalledFromWrongThreadException
      */
     private class ListenerDispatcher(
         listener: LocationListener,
@@ -122,21 +144,41 @@ class XposedEntry : IXposedHookLoadPackage {
         val targetHandler: Handler? = if (looper != null) Handler(looper) else null
         val targetExecutor = executorObj as? Executor
 
-        fun dispatch(location: Location, defaultMainHandler: Handler) {
-            val listener = weakListener.get() ?: return
+        fun isAlive(): Boolean = weakListener.get() != null
+
+        fun dispatch(location: Location, defaultMainHandler: Handler): Boolean {
+            if (weakListener.get() == null) return false
+            val weakRef = weakListener
+
             if (targetExecutor != null) {
                 try {
                     targetExecutor.execute {
-                        try { listener.onLocationChanged(location) } catch (_: Throwable) {}
+                        val activeListener = weakRef.get() ?: return@execute
+                        try { activeListener.onLocationChanged(location) } catch (_: Throwable) {}
                     }
-                } catch (_: Throwable) {}
+                    return true
+                } catch (_: Throwable) {
+                    return false
+                }
             } else if (targetHandler != null) {
-                targetHandler.post {
-                    try { listener.onLocationChanged(location) } catch (_: Throwable) {}
+                try {
+                    targetHandler.post {
+                        val activeListener = weakRef.get() ?: return@post
+                        try { activeListener.onLocationChanged(location) } catch (_: Throwable) {}
+                    }
+                    return true
+                } catch (_: Throwable) {
+                    return false
                 }
             } else {
-                defaultMainHandler.post {
-                    try { listener.onLocationChanged(location) } catch (_: Throwable) {}
+                try {
+                    defaultMainHandler.post {
+                        val activeListener = weakRef.get() ?: return@post
+                        try { activeListener.onLocationChanged(location) } catch (_: Throwable) {}
+                    }
+                    return true
+                } catch (_: Throwable) {
+                    return false
                 }
             }
         }
@@ -165,7 +207,10 @@ class XposedEntry : IXposedHookLoadPackage {
             // ================= 6. 移动蜂窝基站 CellInfoLte 合规构造与伪装 =================
             hookTelephony(lpparam)
 
-            XposedBridge.log("[LocationMockPro-Hook] Phase 3.0 加固引擎已成功注入: ${lpparam.packageName}")
+            // ================= 7. Android 11+ 包可见性 (Package Visibility) 终极穿透 =================
+            hookPackageVisibility(lpparam)
+
+            XposedBridge.log("[LocationMockPro-Hook] Phase 3.0 加固与 Release 级防护已成功注入: ${lpparam.packageName}")
         } catch (t: Throwable) {
             XposedBridge.log("[LocationMockPro-Hook] 注入目标应用 ${lpparam.packageName} 发生异常: ${t.message}")
         }
@@ -504,15 +549,22 @@ class XposedEntry : IXposedHookLoadPackage {
                         Thread.sleep(1000L)
                         val state = getSimState()
                         if (state != null && state.isMocking) {
+                            // 定期清理已被 GC 回收的无效引用（弱引用双保险）
+                            val iterator = activeDispatchers.entries.iterator()
+                            while (iterator.hasNext()) {
+                                val entry = iterator.next()
+                                if (!entry.value.isAlive()) {
+                                    iterator.remove()
+                                }
+                            }
+
                             val activeEntries = activeDispatchers.entries.toList()
                             if (activeEntries.isNotEmpty()) {
                                 val spoofedLoc = buildSpoofedLocation(LocationManager.GPS_PROVIDER, state)
                                 for (entry in activeEntries) {
-                                    val dispatcher = entry.value
-                                    if (dispatcher.weakListener.get() == null) {
+                                    val success = entry.value.dispatch(spoofedLoc, mainHandler)
+                                    if (!success || !entry.value.isAlive()) {
                                         activeDispatchers.remove(entry.key)
-                                    } else {
-                                        dispatcher.dispatch(spoofedLoc, mainHandler)
                                     }
                                 }
                             }
@@ -734,6 +786,56 @@ class XposedEntry : IXposedHookLoadPackage {
     }
 
     /**
+     * 7. Android 11+ 包可见性 (Package Visibility) 终极穿透 Hook
+     * 确保宿主应用在 targetSdkVersion >= 30 且未在 AndroidManifest 中声明 queries 时，
+     * 依然可以无障碍解析并访问 LocationStateProvider 与模块包信息
+     */
+    private fun hookPackageVisibility(lpparam: XC_LoadPackage.LoadPackageParam) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+
+        try {
+            val appPkgMgrClass = Class.forName("android.app.ApplicationPackageManager")
+
+            // A. 放行 canPackageQuery 跨包查询鉴权
+            val canQueryMethods = appPkgMgrClass.declaredMethods.filter { it.name == "canPackageQuery" }
+            for (method in canQueryMethods) {
+                XposedBridge.hookMethod(method, object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        for (arg in param.args) {
+                            if (arg == "com.antigravity.geospoofer") {
+                                param.result = true
+                                return
+                            }
+                        }
+                    }
+                })
+            }
+
+            // B. 拦截 resolveContentProvider，防止宿主查询 com.antigravity.geospoofer.provider 返回 null
+            val resolveMethods = appPkgMgrClass.declaredMethods.filter { it.name == "resolveContentProvider" }
+            for (method in resolveMethods) {
+                XposedBridge.hookMethod(method, object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        val auth = param.args.firstOrNull() as? String
+                        if (auth == "com.antigravity.geospoofer.provider" && param.result == null) {
+                            try {
+                                val pi = android.content.pm.ProviderInfo().apply {
+                                    authority = "com.antigravity.geospoofer.provider"
+                                    packageName = "com.antigravity.geospoofer"
+                                    name = "com.antigravity.geospoofer.provider.LocationStateProvider"
+                                    exported = true
+                                    grantUriPermissions = true
+                                }
+                                param.result = pi
+                            } catch (_: Throwable) {}
+                        }
+                    }
+                })
+            }
+        } catch (_: Throwable) {}
+    }
+
+    /**
      * 纳秒级单调时钟与精度补齐：严禁恒定精度，生成 3.5m ~ 8.0m 动态波动值
      */
     private fun buildSpoofedLocation(provider: String, state: RemoteState): Location {
@@ -846,6 +948,46 @@ class XposedEntry : IXposedHookLoadPackage {
             } catch (_: Throwable) {
             } finally {
                 queryCursor?.close()
+            }
+
+            // 终极只读 IPC 通道预案：尝试 LSPosed 原生 XSharedPreferences 读取（穿透 Android 11+ Package Visibility 隔离）
+            val prefs = getXSharedPrefs()
+            if (prefs != null) {
+                try {
+                    prefs.reload()
+                    if (prefs.contains("is_mocking") || prefs.contains("latitude_f") || prefs.contains("latitude_str")) {
+                        val latStr = prefs.getString("latitude_str", null)
+                        val lonStr = prefs.getString("longitude_str", null)
+                        val altStr = prefs.getString("altitude_str", null)
+
+                        val lat = latStr?.toDoubleOrNull() ?: prefs.getFloat("latitude_f", 39.908823f).toDouble()
+                        val lon = lonStr?.toDoubleOrNull() ?: prefs.getFloat("longitude_f", 116.397470f).toDouble()
+                        val alt = altStr?.toDoubleOrNull() ?: prefs.getFloat("altitude_f", 35.0f).toDouble()
+
+                        val state = RemoteState(
+                            isMocking = prefs.getBoolean("is_mocking", false),
+                            latitude = lat,
+                            longitude = lon,
+                            altitude = alt,
+                            speed = prefs.getFloat("speed", 0f),
+                            bearing = prefs.getFloat("bearing", 0f),
+                            totalSteps = prefs.getLong("total_steps", 0L),
+                            cadenceSpm = prefs.getInt("cadence_spm", 0),
+                            wifiMockEnabled = prefs.getBoolean("wifi_mock_enabled", false),
+                            wifiSsid = prefs.getString("wifi_ssid", "Company-Office-5G") ?: "Company-Office-5G",
+                            wifiBssid = prefs.getString("wifi_bssid", "00:1a:2b:3c:4d:5e") ?: "00:1a:2b:3c:4d:5e",
+                            wifiRssi = prefs.getInt("wifi_rssi", -52),
+                            cellMockEnabled = prefs.getBoolean("cell_mock_enabled", false),
+                            cellMcc = prefs.getInt("cell_mcc", 460),
+                            cellMnc = prefs.getInt("cell_mnc", 0),
+                            cellLac = prefs.getInt("cell_lac", 41021),
+                            cellCid = prefs.getInt("cell_cid", 1892341)
+                        )
+                        cachedState = state
+                        lastFetchTime = now
+                        return state
+                    }
+                } catch (_: Throwable) {}
             }
 
             cachedState ?: defaultState

@@ -185,6 +185,7 @@ class LocationStateProvider : ContentProvider() {
                 isMocking = active
                 timestamp = System.currentTimeMillis()
             }
+            persistStateToPrefs()
         }
 
         /**
@@ -195,6 +196,41 @@ class LocationStateProvider : ContentProvider() {
                 totalSteps = steps
                 cadenceSpm = cadence
             }
+            persistStateToPrefs()
+        }
+
+        /**
+         * 同步写入持久化 SharedPreferences 供 LSPosed 原生 XSharedPreferences 无缝兜底读取
+         */
+        private fun persistStateToPrefs() {
+            try {
+                val ctx = appContext ?: return
+                val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                prefs.edit().apply {
+                    putBoolean(KEY_IS_MOCKING, isMocking)
+                    putString("latitude_str", latitude.toString())
+                    putString("longitude_str", longitude.toString())
+                    putString("altitude_str", altitude.toString())
+                    putFloat("latitude_f", latitude.toFloat())
+                    putFloat("longitude_f", longitude.toFloat())
+                    putFloat("altitude_f", altitude.toFloat())
+                    putFloat(KEY_SPEED, speed)
+                    putFloat(KEY_BEARING, bearing)
+                    putLong(KEY_TOTAL_STEPS, totalSteps)
+                    putInt(KEY_CADENCE, cadenceSpm)
+                    putLong(KEY_TIMESTAMP, timestamp)
+                    putBoolean(KEY_WIFI_MOCK_ENABLED, wifiMockEnabled)
+                    putString(KEY_WIFI_SSID, wifiSsid)
+                    putString(KEY_WIFI_BSSID, wifiBssid)
+                    putInt(KEY_WIFI_RSSI, wifiRssi)
+                    putBoolean(KEY_CELL_MOCK_ENABLED, cellMockEnabled)
+                    putInt(KEY_CELL_MCC, cellMcc)
+                    putInt(KEY_CELL_MNC, cellMnc)
+                    putInt(KEY_CELL_LAC, cellLac)
+                    putInt(KEY_CELL_CID, cellCid)
+                    apply()
+                }
+            } catch (_: Throwable) {}
         }
 
         /**
