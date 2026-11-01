@@ -41,6 +41,8 @@ class MockLocationEngine(private val context: Context) {
         private set
     var lastNmeaGga: String = ""
         private set
+    var lastNmeaGsv: String = ""
+        private set
     var lastSatelliteCount: Int = 16
         private set
     var lastMeanCn0: Float = 33.5f
@@ -194,9 +196,10 @@ class MockLocationEngine(private val context: Context) {
             putInt("numSatellitesInView", satelliteCount)
         }
 
-        // 生成真实有效的 NMEA-0183 协议语句
+        // 生成真实有效的 NMEA-0183 协议语句 (RMC/GGA/GSV)
         lastNmeaRmc = NmeaUtils.buildGprmc(injectedLat, injectedLon, speed, bearing, nowMillis)
         lastNmeaGga = NmeaUtils.buildGpgga(injectedLat, injectedLon, currentAltitude, satelliteCount, nowMillis)
+        lastNmeaGsv = NmeaUtils.buildGpgsv(satelliteCount, nowMillis).joinToString("\n")
 
         // 3.5f ~ 8.0f 米拟真动态微幅波动（切勿恒定为整数）
         val dynamicAccuracy = (profile.baseAccuracyMeters + (random.nextFloat() * 2.2f) + (Math.sin(nowMillis / 1200.0).toFloat() * 1.2f)).coerceIn(3.5f, 8.0f)
@@ -293,5 +296,31 @@ object NmeaUtils {
 
         val body = "GPGGA,$timeStr,$latStr,$latDir,$lonStr,$lonDir,1,${String.format(Locale.US, "%02d", satellites)},1.0,${String.format(Locale.US, "%.1f", alt)},M,0.0,M,,"
         return "\$$body*${computeChecksum(body)}"
+    }
+
+    /**
+     * 生成标准 GPGSV 卫星视场报文（包含卫星编号、仰角、方位角及载噪比，支持专业级 GPS Test 与 GIS 工具）
+     */
+    fun buildGpgsv(satellites: Int, timestampMillis: Long): List<String> {
+        val totalSats = satellites.coerceIn(4, 16)
+        val sentences = mutableListOf<String>()
+        val totalMessages = kotlin.math.ceil(totalSats / 4.0).toInt()
+
+        for (msgIndex in 1..totalMessages) {
+            val sb = StringBuilder("GPGSV,$totalMessages,$msgIndex,$totalSats")
+            val startSat = (msgIndex - 1) * 4 + 1
+            val endSat = (startSat + 3).coerceAtMost(totalSats)
+
+            for (satId in startSat..endSat) {
+                val prn = String.format(Locale.US, "%02d", satId)
+                val elev = 25 + (satId * 4) % 55
+                val azim = (satId * 29) % 360
+                val snr = 32 + (satId * 3) % 12
+                sb.append(",$prn,$elev,$azim,$snr")
+            }
+            val body = sb.toString()
+            sentences.add("\$$body*${computeChecksum(body)}")
+        }
+        return sentences
     }
 }

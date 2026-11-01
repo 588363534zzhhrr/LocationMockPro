@@ -48,6 +48,7 @@ class FloatingJoystickService : Service() {
 
     private var currentAngle = 0f
     private var currentIntensity = 0f
+    private var isCruiseLocked = false
 
     // 控件引用
     private var miniStatusTextView: TextView? = null
@@ -231,6 +232,29 @@ class FloatingJoystickService : Service() {
             }
         }
 
+        // 🔒 巡航锁定（自动恒速向前持续巡航，降低手部按压疲劳）
+        val cruiseBtn = TextView(this).apply {
+            text = "🔒"
+            textSize = 14f
+            setPadding(8, 4, 8, 4)
+            setOnClickListener {
+                isCruiseLocked = !isCruiseLocked
+                if (isCruiseLocked) {
+                    text = "🔓"
+                    setTextColor(0xFF4CAF50.toInt())
+                    if (currentIntensity <= 0f) {
+                        currentIntensity = 1.0f
+                    }
+                    startJoystickLoop()
+                } else {
+                    text = "🔒"
+                    setTextColor(Color.WHITE)
+                    currentIntensity = 0f
+                    stopJoystickLoop()
+                }
+            }
+        }
+
         // 折叠为极小药丸按钮
         val collapseBtn = TextView(this).apply {
             text = "🔽"
@@ -258,6 +282,7 @@ class FloatingJoystickService : Service() {
         headerRow.addView(speedDownBtn)
         headerRow.addView(speedUpBtn)
         headerRow.addView(gearBtn)
+        headerRow.addView(cruiseBtn)
         headerRow.addView(collapseBtn)
         headerRow.addView(closeBtn)
         fullHudView?.addView(headerRow)
@@ -368,10 +393,12 @@ class FloatingJoystickService : Service() {
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    stickView.translationX = 0f
-                    stickView.translationY = 0f
-                    currentIntensity = 0f
-                    stopJoystickLoop()
+                    if (!isCruiseLocked) {
+                        stickView.translationX = 0f
+                        stickView.translationY = 0f
+                        currentIntensity = 0f
+                        stopJoystickLoop()
+                    }
                     true
                 }
                 else -> false

@@ -377,6 +377,7 @@ fun MainScreen(
 
     var liveRmc by remember { mutableStateOf("") }
     var liveGga by remember { mutableStateOf("") }
+    var liveGsv by remember { mutableStateOf("") }
     var liveSats by remember { mutableIntStateOf(16) }
     var liveCn0 by remember { mutableFloatStateOf(33.5f) }
 
@@ -385,6 +386,7 @@ fun MainScreen(
             if (engine != null && engine.isRunning) {
                 liveRmc = engine.lastNmeaRmc
                 liveGga = engine.lastNmeaGga
+                liveGsv = engine.lastNmeaGsv
                 liveSats = engine.lastSatelliteCount
                 liveCn0 = engine.lastMeanCn0
             }
@@ -853,6 +855,14 @@ fun MainScreen(
                                         fontSize = 10.sp,
                                         color = Color(0xFF38BDF8)
                                     )
+                                    if (liveGsv.isNotBlank()) {
+                                        Text(
+                                            text = liveGsv,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                            fontSize = 9.sp,
+                                            color = Color(0xFFF59E0B)
+                                        )
+                                    }
                                 }
                             }
                         }

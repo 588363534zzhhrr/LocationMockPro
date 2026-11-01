@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- LSPosed 建议作用域（留空表示允许用户在 LSPosed Manager 中自由勾选任意应用） -->
+    <!-- LSPosed 建议推荐勾选作用域（涵盖高频敏感考勤打卡、运动健身、骑手与定位导航类 App） -->
     <string-array name="xposed_scope">
+        <item>com.alibaba.android.rimet</item>        <!-- 钉钉 -->
+        <item>com.tencent.wework</item>               <!-- 企业微信 -->
+        <item>com.ss.android.lark</item>              <!-- 飞书 -->
+        <item>com.gotokeep.keep</item>                <!-- Keep 健身 -->
+        <item>com.yuedong.sport</item>                <!-- 悦动圈 -->
+        <item>co.runner.app</item>                    <!-- 步道乐跑 -->
+        <item>com.nianticlabs.pokemongo</item>        <!-- Pokémon GO -->
+        <item>com.sdu.didi.psnger</item>              <!-- 滴滴出行 -->
+        <item>com.sdu.didi.gui</item>                 <!-- 滴滴车主 -->
+        <item>com.sankuai.meituan</item>              <!-- 美团 -->
+        <item>com.autonavi.minimap</item>             <!-- 高德地图 -->
+        <item>com.baidu.BaiduMap</item>               <!-- 百度地图 -->
     </string-array>
 </resources>

@@ -422,6 +422,29 @@ class XposedEntry : IXposedHookLoadPackage {
                     }
                 })
             }
+
+            // D. Hook registerGnssStatusCallback 模拟急速冷启动与 3D 卫星定位锁定
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                val gnssMethods = LocationManager::class.java.declaredMethods.filter {
+                    it.name == "registerGnssStatusCallback"
+                }
+                for (method in gnssMethods) {
+                    XposedBridge.hookMethod(method, object : XC_MethodHook() {
+                        override fun beforeHookedMethod(param: MethodHookParam) {
+                            val callback = param.args.firstOrNull { it is android.location.GnssStatus.Callback } as? android.location.GnssStatus.Callback ?: return
+                            mainHandler.postDelayed({
+                                try {
+                                    val state = getSimState()
+                                    if (state != null && state.isMocking) {
+                                        callback.onStarted()
+                                        callback.onFirstFix(800)
+                                    }
+                                } catch (_: Throwable) {}
+                            }, 400L)
+                        }
+                    })
+                }
+            }
         } catch (_: Throwable) {}
     }
 
