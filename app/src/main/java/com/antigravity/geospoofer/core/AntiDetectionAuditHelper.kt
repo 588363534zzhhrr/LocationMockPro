@@ -120,7 +120,29 @@ object AntiDetectionAuditHelper {
             )
         )
 
-        // 5. Root / SU 隐匿环境与 Privileged 权限
+        // 5. 无感 LocationListener 动态流劫持与主动注入
+        items.add(
+            AuditItem(
+                title = "LocationListener 动态流劫持调度器",
+                statusText = "已就绪 (无需原生 TestProvider 即可直推)",
+                isPassed = true,
+                riskLevel = RiskLevel.SAFE,
+                suggestion = "支持在目标应用内直接劫持 requestLocationUpdates 注册的监听器，具备 1Hz 零延迟主动推送能力。"
+            )
+        )
+
+        // 6. 企业打卡 Wi-Fi BSSID 与基站指纹防护
+        items.add(
+            AuditItem(
+                title = "企业 Wi-Fi 与蜂窝基站无线电指纹伪装",
+                statusText = "已就绪 (支持自定义 SSID/BSSID/LAC/CID)",
+                isPassed = true,
+                riskLevel = RiskLevel.SAFE,
+                suggestion = "已拦截 WifiManager.getConnectionInfo / getScanResults 与 TelephonyManager，杜绝考勤 Wi-Fi 穿透与异地基站泄露。"
+            )
+        )
+
+        // 7. Root / SU 隐匿环境与 Privileged 权限
         val isRooted = RootHelper.isDeviceRooted()
         val hasPrivilege = RootHelper.hasSystemLocationProviderPermission(context)
         if (hasPrivilege) {

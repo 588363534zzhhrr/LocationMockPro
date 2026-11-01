@@ -51,6 +51,7 @@ import com.antigravity.geospoofer.core.RootHelper
 import com.antigravity.geospoofer.core.RouteSimulator
 import com.antigravity.geospoofer.core.RouteStorageHelper
 import com.antigravity.geospoofer.core.SavedRoute
+import com.antigravity.geospoofer.provider.LocationStateProvider
 import com.antigravity.geospoofer.service.FloatingJoystickService
 import com.antigravity.geospoofer.service.MockLocationService
 import com.antigravity.geospoofer.ui.InteractiveMapCard
@@ -359,7 +360,20 @@ fun MainScreen(
     // 防检测体检、NMEA 终端与地形海拔起伏
     var enableTerrainElevation by remember { mutableStateOf(true) }
     var showAuditDialog by remember { mutableStateOf(false) }
+    var showRadioSpoofDialog by remember { mutableStateOf(false) }
     var showNmeaTerminal by remember { mutableStateOf(false) }
+
+    // Wi-Fi 与基站伪装状态
+    var wifiMockEnabled by remember { mutableStateOf(LocationStateProvider.wifiMockEnabled) }
+    var wifiSsidInput by remember { mutableStateOf(LocationStateProvider.wifiSsid) }
+    var wifiBssidInput by remember { mutableStateOf(LocationStateProvider.wifiBssid) }
+    var wifiRssiInput by remember { mutableStateOf(LocationStateProvider.wifiRssi.toString()) }
+
+    var cellMockEnabled by remember { mutableStateOf(LocationStateProvider.cellMockEnabled) }
+    var cellMccInput by remember { mutableStateOf(LocationStateProvider.cellMcc.toString()) }
+    var cellMncInput by remember { mutableStateOf(LocationStateProvider.cellMnc.toString()) }
+    var cellLacInput by remember { mutableStateOf(LocationStateProvider.cellLac.toString()) }
+    var cellCidInput by remember { mutableStateOf(LocationStateProvider.cellCid.toString()) }
 
     var liveRmc by remember { mutableStateOf("") }
     var liveGga by remember { mutableStateOf("") }
@@ -768,7 +782,7 @@ fun MainScreen(
 
                 HorizontalDivider(color = Color(0xFF333333))
 
-                // 7. 防检测全维体检报告与 NMEA 卫星终端
+                // 7. 防检测全维体检报告、Wi-Fi/基站伪装与 NMEA 卫星终端
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -783,12 +797,22 @@ fun MainScreen(
                         Text("🛡️ 防检测体检", fontSize = 12.sp, color = Color(0xFF81C784), fontWeight = FontWeight.Bold)
                     }
 
-                    OutlinedButton(
-                        onClick = { showNmeaTerminal = !showNmeaTerminal },
-                        modifier = Modifier.weight(1f)
+                    FilledTonalButton(
+                        onClick = { showRadioSpoofDialog = true },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF1A2A3A))
                     ) {
-                        Text(if (showNmeaTerminal) "收起 NMEA 终端" else "🛰️ NMEA 终端", fontSize = 12.sp)
+                        Icon(Icons.Default.Wifi, contentDescription = null, tint = Color(0xFF64B5F6), modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("📶 Wi-Fi/基站伪装", fontSize = 12.sp, color = Color(0xFF90CAF9), fontWeight = FontWeight.Bold)
                     }
+                }
+
+                OutlinedButton(
+                    onClick = { showNmeaTerminal = !showNmeaTerminal },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (showNmeaTerminal) "收起 NMEA 终端" else "🛰️ NMEA 终端与卫星数据流", fontSize = 12.sp)
                 }
 
                 if (showNmeaTerminal) {
@@ -2113,6 +2137,234 @@ fun MainScreen(
             confirmButton = {
                 Button(onClick = { showAuditDialog = false }) {
                     Text("完成体检")
+                }
+            }
+        )
+    }
+
+    // 📶 企业 Wi-Fi 与移动基站环境无线电指纹伪装弹窗
+    if (showRadioSpoofDialog) {
+        AlertDialog(
+            onDismissRequest = { showRadioSpoofDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Wifi, contentDescription = null, tint = Color(0xFF64B5F6))
+                    Text("📶 Wi-Fi 考勤与基站伪装", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 500.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        "绕过钉钉、企业微信等大厂考勤风控系统对办公室内 Wi-Fi BSSID 与基站 LAC/CID 的硬件环境比对。",
+                        fontSize = 11.sp,
+                        color = Color.LightGray
+                    )
+
+                    // 1. Wi-Fi 伪装卡片
+                    Surface(
+                        color = Color(0xFF1E2630),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, Color(0xFF2C3E50)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("🏢 启用 Wi-Fi 考勤伪装", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
+                                Switch(
+                                    checked = wifiMockEnabled,
+                                    onCheckedChange = { wifiMockEnabled = it }
+                                )
+                            }
+
+                            if (wifiMockEnabled) {
+                                OutlinedTextField(
+                                    value = wifiSsidInput,
+                                    onValueChange = { wifiSsidInput = it },
+                                    label = { Text("目标 Wi-Fi 名称 (SSID)") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                OutlinedTextField(
+                                    value = wifiBssidInput,
+                                    onValueChange = { wifiBssidInput = it },
+                                    label = { Text("目标 MAC 地址 (BSSID)") },
+                                    placeholder = { Text("如 00:1a:2b:3c:4d:5e") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                OutlinedTextField(
+                                    value = wifiRssiInput,
+                                    onValueChange = { wifiRssiInput = it },
+                                    label = { Text("信号强度 RSSI (dBm)") },
+                                    placeholder = { Text("如 -48") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            wifiSsidInput = "Corporate-Office-5G"
+                                            wifiBssidInput = "00:1a:2b:3c:4d:5e"
+                                            wifiRssiInput = "-48"
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                                        modifier = Modifier.weight(1f).height(30.dp)
+                                    ) {
+                                        Text("预设: 企业5G", fontSize = 10.sp)
+                                    }
+                                    OutlinedButton(
+                                        onClick = {
+                                            wifiSsidInput = "Tech-Park-FreeWiFi"
+                                            wifiBssidInput = "74:05:a5:88:21:bb"
+                                            wifiRssiInput = "-55"
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                                        modifier = Modifier.weight(1f).height(30.dp)
+                                    ) {
+                                        Text("预设: 园区打卡", fontSize = 10.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. 蜂窝基站伪装卡片
+                    Surface(
+                        color = Color(0xFF251E28),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, Color(0xFF3E2C48)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("🗼 启用蜂窝基站伪装", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
+                                Switch(
+                                    checked = cellMockEnabled,
+                                    onCheckedChange = { cellMockEnabled = it }
+                                )
+                            }
+
+                            if (cellMockEnabled) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    OutlinedTextField(
+                                        value = cellMccInput,
+                                        onValueChange = { cellMccInput = it },
+                                        label = { Text("MCC") },
+                                        singleLine = true,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    OutlinedTextField(
+                                        value = cellMncInput,
+                                        onValueChange = { cellMncInput = it },
+                                        label = { Text("MNC") },
+                                        singleLine = true,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    OutlinedTextField(
+                                        value = cellLacInput,
+                                        onValueChange = { cellLacInput = it },
+                                        label = { Text("LAC 位置区") },
+                                        singleLine = true,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    OutlinedTextField(
+                                        value = cellCidInput,
+                                        onValueChange = { cellCidInput = it },
+                                        label = { Text("CID 小区号") },
+                                        singleLine = true,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            cellMccInput = "460"
+                                            cellMncInput = "0"
+                                            cellLacInput = "41021"
+                                            cellCidInput = "1892341"
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                                        modifier = Modifier.weight(1f).height(30.dp)
+                                    ) {
+                                        Text("中国移动基站", fontSize = 10.sp)
+                                    }
+                                    OutlinedButton(
+                                        onClick = {
+                                            cellMccInput = "460"
+                                            cellMncInput = "11"
+                                            cellLacInput = "32188"
+                                            cellCidInput = "9241852"
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                                        modifier = Modifier.weight(1f).height(30.dp)
+                                    ) {
+                                        Text("中国电信基站", fontSize = 10.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val rssiVal = wifiRssiInput.toIntOrNull() ?: -52
+                        val mccVal = cellMccInput.toIntOrNull() ?: 460
+                        val mncVal = cellMncInput.toIntOrNull() ?: 0
+                        val lacVal = cellLacInput.toIntOrNull() ?: 41021
+                        val cidVal = cellCidInput.toIntOrNull() ?: 1892341
+
+                        LocationStateProvider.updateWifiSpoof(
+                            enabled = wifiMockEnabled,
+                            ssid = wifiSsidInput.trim(),
+                            bssid = wifiBssidInput.trim(),
+                            rssi = rssiVal
+                        )
+                        LocationStateProvider.updateCellSpoof(
+                            enabled = cellMockEnabled,
+                            mcc = mccVal,
+                            mnc = mncVal,
+                            lac = lacVal,
+                            cid = cidVal
+                        )
+                        Toast.makeText(context, "✅ Wi-Fi 与基站伪装配置已保存并实时生效！", Toast.LENGTH_SHORT).show()
+                        showRadioSpoofDialog = false
+                    }
+                ) {
+                    Text("保存并生效")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRadioSpoofDialog = false }) {
+                    Text("取消")
                 }
             }
         )

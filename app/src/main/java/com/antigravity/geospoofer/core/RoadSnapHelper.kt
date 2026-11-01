@@ -4,7 +4,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
@@ -13,6 +12,8 @@ import java.util.Locale
  * 真实道路沿路吸附与曲线拓扑规划器 (Road-Snapping Routing Engine)
  * 基于开源 OpenStreetMap / OSRM 导航引擎，将散落的路点自动贴合吸附至真实的步行道路、人行道或机动车道，
  * 彻底消除两点之间直线穿楼、穿湖的异常轨迹特征。
+ *
+ * V2.5 极致优化：采用全路网批量单次聚合请求 (Batch Multi-Waypoint Snapping)，大幅降低网络延迟并抵御公共 API 限流。
  */
 object RoadSnapHelper {
 
@@ -21,6 +22,8 @@ object RoadSnapHelper {
         BIKE("bike", "自行车道/骑行"),
         DRIVING("driving", "机动车道/驾车")
     }
+
+    private const val MAX_WAYPOINTS_PER_BATCH = 25
 
     /**
      * 将多个稀疏打点沿真实道路吸附连接，输出完整的沿街路网坐标流
@@ -36,54 +39,78 @@ object RoadSnapHelper {
         try {
             val snappedList = mutableListOf<CoordinateUtils.LatLng>()
 
-            // 分段向 OSRM 请求道路拓扑路径（每两点之间规划真实道路）
-            for (i in 0 until waypoints.size - 1) {
-                val start = waypoints[i]
-                val end = waypoints[i + 1]
+            // 若总点数较少，直接单次请求全量聚合；若点数过多，切片批量请求（重叠首尾点保证连贯）
+            val chunks = splitIntoOverlappingChunks(waypoints, MAX_WAYPOINTS_PER_BATCH)
 
-                val segmentPoints = fetchRoadSegment(start, end, profile)
-                if (segmentPoints.isNotEmpty()) {
+            for (chunk in chunks) {
+                val batchPoints = fetchBatchRoadRoute(chunk, profile)
+                if (batchPoints.isNotEmpty()) {
                     if (snappedList.isEmpty()) {
-                        snappedList.addAll(segmentPoints)
+                        snappedList.addAll(batchPoints)
                     } else {
-                        // 避免两段之间首尾点重复
-                        snappedList.addAll(segmentPoints.drop(1))
+                        // 避免两批次之间首尾点重复
+                        snappedList.addAll(batchPoints.drop(1))
                     }
                 } else {
-                    // 降级为直线两点
-                    if (snappedList.isEmpty()) snappedList.add(start)
-                    snappedList.add(end)
+                    // 若批量请求失败，降级为直连
+                    if (snappedList.isEmpty()) snappedList.addAll(chunk)
+                    else snappedList.addAll(chunk.drop(1))
                 }
             }
 
-            Result.success(snappedList)
+            // 对整段曲线进行平滑控制，确保 UI 渲染与仿真引擎极速运行
+            val finalRoute = downsampleSmoothly(snappedList, maxPoints = 250)
+            Result.success(finalRoute)
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
         }
     }
 
-    private fun fetchRoadSegment(
-        start: CoordinateUtils.LatLng,
-        end: CoordinateUtils.LatLng,
+    /**
+     * 将长路标切分成带重叠首尾节点的批次
+     */
+    private fun splitIntoOverlappingChunks(
+        points: List<CoordinateUtils.LatLng>,
+        chunkSize: Int
+    ): List<List<CoordinateUtils.LatLng>> {
+        if (points.size <= chunkSize) return listOf(points)
+
+        val result = mutableListOf<List<CoordinateUtils.LatLng>>()
+        var startIndex = 0
+        while (startIndex < points.size - 1) {
+            val endIndex = (startIndex + chunkSize).coerceAtMost(points.size)
+            result.add(points.subList(startIndex, endIndex))
+            if (endIndex == points.size) break
+            startIndex = endIndex - 1 // 重叠最后一个节点作为下一批次起点
+        }
+        return result
+    }
+
+    /**
+     * 单次请求 OSRM 批量全路网拓扑路径
+     */
+    private fun fetchBatchRoadRoute(
+        points: List<CoordinateUtils.LatLng>,
         profile: SnapProfile
     ): List<CoordinateUtils.LatLng> {
-        val urlStr = String.format(
-            Locale.US,
-            "https://router.project-osrm.org/route/v1/%s/%.6f,%.6f;%.6f,%.6f?overview=full&geometries=geojson",
-            profile.id,
-            start.longitude, start.latitude,
-            end.longitude, end.latitude
-        )
+        if (points.size < 2) return points
+
+        // 构建聚合 coordinates 字符串: lon1,lat1;lon2,lat2;...
+        val coordinatesParam = points.joinToString(";") { p ->
+            String.format(Locale.US, "%.6f,%.6f", p.longitude, p.latitude)
+        }
+
+        val urlStr = "https://router.project-osrm.org/route/v1/${profile.id}/$coordinatesParam?overview=full&geometries=geojson"
 
         var connection: HttpURLConnection? = null
         return try {
             val url = URL(urlStr)
             connection = (url.openConnection() as HttpURLConnection).apply {
-                connectTimeout = 4000
-                readTimeout = 4000
+                connectTimeout = 5000
+                readTimeout = 5000
                 requestMethod = "GET"
-                setRequestProperty("User-Agent", "LocationMockPro/1.0 (Android; OpenStreetMap Routing)")
+                setRequestProperty("User-Agent", "LocationMockPro/2.5 (Android; OpenStreetMap Batch Routing)")
             }
 
             if (connection.responseCode == 200) {
@@ -95,24 +122,22 @@ object RoadSnapHelper {
                     val geometry = firstRoute.getJSONObject("geometry")
                     val coordinates = geometry.getJSONArray("coordinates")
 
-                    val points = mutableListOf<CoordinateUtils.LatLng>()
+                    val resultPoints = mutableListOf<CoordinateUtils.LatLng>()
                     for (k in 0 until coordinates.length()) {
                         val coord = coordinates.getJSONArray(k)
                         val lon = coord.getDouble(0)
                         val lat = coord.getDouble(1)
-                        points.add(CoordinateUtils.LatLng(lat, lon))
+                        resultPoints.add(CoordinateUtils.LatLng(lat, lon))
                     }
-
-                    // 若吸附点过多（例如数十公里弯路数千点），做等距适度降采样，保持拐弯平滑且不卡顿
-                    downsampleSmoothly(points, maxPoints = 120)
+                    if (resultPoints.isNotEmpty()) resultPoints else points
                 } else {
-                    listOf(start, end)
+                    points
                 }
             } else {
-                listOf(start, end)
+                points
             }
         } catch (e: Exception) {
-            listOf(start, end)
+            points
         } finally {
             connection?.disconnect()
         }
@@ -123,7 +148,7 @@ object RoadSnapHelper {
      */
     private fun downsampleSmoothly(
         points: List<CoordinateUtils.LatLng>,
-        maxPoints: Int = 100
+        maxPoints: Int = 200
     ): List<CoordinateUtils.LatLng> {
         if (points.size <= maxPoints) return points
 
