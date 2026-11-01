@@ -198,6 +198,9 @@ class MockLocationEngine(private val context: Context) {
         lastNmeaRmc = NmeaUtils.buildGprmc(injectedLat, injectedLon, speed, bearing, nowMillis)
         lastNmeaGga = NmeaUtils.buildGpgga(injectedLat, injectedLon, currentAltitude, satelliteCount, nowMillis)
 
+        // 3.5f ~ 8.0f 米拟真动态微幅波动（切勿恒定为整数）
+        val dynamicAccuracy = (profile.baseAccuracyMeters + (random.nextFloat() * 2.2f) + (Math.sin(nowMillis / 1200.0).toFloat() * 1.2f)).coerceIn(3.5f, 8.0f)
+
         for (provider in getActiveProviders()) {
             val loc = Location(provider).apply {
                 latitude = injectedLat
@@ -205,7 +208,7 @@ class MockLocationEngine(private val context: Context) {
                 altitude = currentAltitude + (random.nextDouble() * 0.6 - 0.3)
                 this.speed = speed
                 this.bearing = bearing
-                accuracy = profile.baseAccuracyMeters + (random.nextFloat() * 1.2f)
+                accuracy = dynamicAccuracy
                 time = nowMillis
                 elapsedRealtimeNanos = nowNanos
                 this.extras = extras

@@ -5,6 +5,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.SharedPreferences
 import android.database.Cursor
+import android.database.MatrixCursor
 import android.net.Uri
 import android.os.Bundle
 
@@ -15,44 +16,81 @@ import android.os.Bundle
 class LocationStateProvider : ContentProvider() {
 
     override fun onCreate(): Boolean {
-        instance = this
-        appContext = context?.applicationContext
-        loadPersistedConfig()
-        return true
+        return try {
+            instance = this
+            appContext = context?.applicationContext
+            loadPersistedConfig()
+            true
+        } catch (_: Throwable) {
+            true
+        }
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle {
-        val result = Bundle()
-        if (method == "getState") {
-            synchronized(stateLock) {
-                result.putBoolean(KEY_IS_MOCKING, isMocking)
-                result.putDouble(KEY_LATITUDE, latitude)
-                result.putDouble(KEY_LONGITUDE, longitude)
-                result.putDouble(KEY_ALTITUDE, altitude)
-                result.putFloat(KEY_SPEED, speed)
-                result.putFloat(KEY_BEARING, bearing)
-                result.putLong(KEY_TOTAL_STEPS, totalSteps)
-                result.putInt(KEY_CADENCE, cadenceSpm)
-                result.putLong(KEY_TIMESTAMP, timestamp)
+        return try {
+            val result = Bundle()
+            if (method == "getState") {
+                synchronized(stateLock) {
+                    result.putBoolean(KEY_IS_MOCKING, isMocking)
+                    result.putDouble(KEY_LATITUDE, latitude)
+                    result.putDouble(KEY_LONGITUDE, longitude)
+                    result.putDouble(KEY_ALTITUDE, altitude)
+                    result.putFloat(KEY_SPEED, speed)
+                    result.putFloat(KEY_BEARING, bearing)
+                    result.putLong(KEY_TOTAL_STEPS, totalSteps)
+                    result.putInt(KEY_CADENCE, cadenceSpm)
+                    result.putLong(KEY_TIMESTAMP, timestamp)
 
-                // 企业 Wi-Fi 伪装
-                result.putBoolean(KEY_WIFI_MOCK_ENABLED, wifiMockEnabled)
-                result.putString(KEY_WIFI_SSID, wifiSsid)
-                result.putString(KEY_WIFI_BSSID, wifiBssid)
-                result.putInt(KEY_WIFI_RSSI, wifiRssi)
+                    // 企业 Wi-Fi 伪装
+                    result.putBoolean(KEY_WIFI_MOCK_ENABLED, wifiMockEnabled)
+                    result.putString(KEY_WIFI_SSID, wifiSsid)
+                    result.putString(KEY_WIFI_BSSID, wifiBssid)
+                    result.putInt(KEY_WIFI_RSSI, wifiRssi)
 
-                // 基站 Cell ID 伪装
-                result.putBoolean(KEY_CELL_MOCK_ENABLED, cellMockEnabled)
-                result.putInt(KEY_CELL_MCC, cellMcc)
-                result.putInt(KEY_CELL_MNC, cellMnc)
-                result.putInt(KEY_CELL_LAC, cellLac)
-                result.putInt(KEY_CELL_CID, cellCid)
+                    // 基站 Cell ID 伪装
+                    result.putBoolean(KEY_CELL_MOCK_ENABLED, cellMockEnabled)
+                    result.putInt(KEY_CELL_MCC, cellMcc)
+                    result.putInt(KEY_CELL_MNC, cellMnc)
+                    result.putInt(KEY_CELL_LAC, cellLac)
+                    result.putInt(KEY_CELL_CID, cellCid)
+                }
             }
+            result
+        } catch (_: Throwable) {
+            Bundle()
         }
-        return result
     }
 
-    override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): Cursor? = null
+    override fun query(
+        uri: Uri,
+        projection: Array<out String>?,
+        selection: String?,
+        selectionArgs: Array<out String>?,
+        sortOrder: String?
+    ): Cursor? {
+        return try {
+            val columns = arrayOf(
+                KEY_IS_MOCKING, KEY_LATITUDE, KEY_LONGITUDE, KEY_ALTITUDE,
+                KEY_SPEED, KEY_BEARING, KEY_TOTAL_STEPS, KEY_CADENCE, KEY_TIMESTAMP,
+                KEY_WIFI_MOCK_ENABLED, KEY_WIFI_SSID, KEY_WIFI_BSSID, KEY_WIFI_RSSI,
+                KEY_CELL_MOCK_ENABLED, KEY_CELL_MCC, KEY_CELL_MNC, KEY_CELL_LAC, KEY_CELL_CID
+            )
+            val cursor = MatrixCursor(columns)
+            synchronized(stateLock) {
+                cursor.addRow(
+                    arrayOf(
+                        if (isMocking) 1 else 0, latitude, longitude, altitude,
+                        speed, bearing, totalSteps, cadenceSpm, timestamp,
+                        if (wifiMockEnabled) 1 else 0, wifiSsid, wifiBssid, wifiRssi,
+                        if (cellMockEnabled) 1 else 0, cellMcc, cellMnc, cellLac, cellCid
+                    )
+                )
+            }
+            cursor
+        } catch (_: Throwable) {
+            null
+        }
+    }
     override fun getType(uri: Uri): String? = "vnd.android.cursor.dir/vnd.com.antigravity.geospoofer.state"
     override fun insert(uri: Uri, values: ContentValues?): Uri? = null
     override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int = 0
