@@ -32,6 +32,20 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.LocationMockPro">
 
+        <!-- Xposed / LSPosed 模块声明元数据 -->
+        <meta-data
+            android:name="xposedmodule"
+            android:value="true" />
+        <meta-data
+            android:name="xposeddescription"
+            android:value="LocationMockPro 极客防检测免杀与物理传感器仿真 Hook 模块" />
+        <meta-data
+            android:name="xposedminversion"
+            android:value="82" />
+        <meta-data
+            android:name="xposedscope"
+            android:resource="@array/xposed_scope" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -54,6 +68,13 @@
             android:name=".service.FloatingJoystickService"
             android:enabled="true"
             android:exported="false" />
+
+        <!-- 跨进程状态共享 Provider（供 LSPosed Hook 模块在目标进程实时读取模拟位置与计步数据） -->
+        <provider
+            android:name=".provider.LocationStateProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="true"
+            android:multiprocess="false" />
 
         <!-- GPX 轨迹与数据分享 FileProvider -->
         <provider

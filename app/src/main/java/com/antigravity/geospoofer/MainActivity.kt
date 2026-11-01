@@ -46,6 +46,7 @@ import com.antigravity.geospoofer.core.FavoritePlace
 import com.antigravity.geospoofer.core.FavoritePlacesHelper
 import com.antigravity.geospoofer.core.GpxExportHelper
 import com.antigravity.geospoofer.core.MockLocationEngine
+import com.antigravity.geospoofer.core.RoadSnapHelper
 import com.antigravity.geospoofer.core.RootHelper
 import com.antigravity.geospoofer.core.RouteSimulator
 import com.antigravity.geospoofer.core.RouteStorageHelper
@@ -56,6 +57,7 @@ import com.antigravity.geospoofer.ui.InteractiveMapCard
 import com.antigravity.geospoofer.ui.rememberMapController
 import com.antigravity.geospoofer.ui.theme.LocationMockProTheme
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -324,6 +326,8 @@ fun MainScreen(
     engine: MockLocationEngine? = null
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var isSnappingRoad by remember { mutableStateOf(false) }
     val powerManager = remember { context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager }
     var isIgnoringBattery by remember {
         mutableStateOf(
@@ -1515,6 +1519,33 @@ fun MainScreen(
                     ) {
                         Text("途径路点列表 (${waypoints.size} 点)", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            // 🛣️ 真实道路沿路吸附规划器
+                            TextButton(
+                                onClick = {
+                                    if (waypoints.size >= 2) {
+                                        isSnappingRoad = true
+                                        coroutineScope.launch {
+                                            Toast.makeText(context, "正在沿真实街道/人行道规划贴合路径...", Toast.LENGTH_SHORT).show()
+                                            val result = RoadSnapHelper.snapWaypointsToRoad(waypoints, RoadSnapHelper.SnapProfile.WALKING)
+                                            result.onSuccess { snapped ->
+                                                waypoints = snapped
+                                                mapController.setRouteWaypoints(snapped)
+                                                mapController.fitRoute()
+                                                Toast.makeText(context, "已成功沿真实道路吸附生成 ${snapped.size} 个平滑路点！", Toast.LENGTH_SHORT).show()
+                                            }.onFailure {
+                                                Toast.makeText(context, "道路吸附规划失败，保持原路线: ${it.message}", Toast.LENGTH_SHORT).show()
+                                            }
+                                            isSnappingRoad = false
+                                        }
+                                    } else {
+                                        Toast.makeText(context, "至少需要 2 个路点才能进行道路吸附规划", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                enabled = !isSnappingRoad,
+                                contentPadding = PaddingValues(horizontal = 4.dp)
+                            ) {
+                                Text(if (isSnappingRoad) "⏳ 吸附中" else "🛣️ 沿路贴合", fontSize = 12.sp)
+                            }
                             // 🎲 智能环形跑规划器
                             TextButton(
                                 onClick = { showLoopGeneratorDialog = true },

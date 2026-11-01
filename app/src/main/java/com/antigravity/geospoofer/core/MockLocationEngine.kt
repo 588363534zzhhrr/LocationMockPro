@@ -7,6 +7,7 @@ import android.location.provider.ProviderProperties
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
+import com.antigravity.geospoofer.provider.LocationStateProvider
 import java.util.*
 import kotlin.math.*
 
@@ -61,24 +62,35 @@ class MockLocationEngine(private val context: Context) {
     }
 
     /**
+     * 获取当前系统支持的全部定位提供者（包含 GPS、Network 及 Android 12+ 引入的 Fused 融合定位）
+     */
+    fun getActiveProviders(): List<String> {
+        val providers = mutableListOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            providers.add("fused")
+        }
+        return providers
+    }
+
+    /**
      * 启动并注册测试提供者
      */
     @Synchronized
     fun start(): Boolean {
         if (isRunning) return true
 
-        return try {
-            val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
-            for (provider in providers) {
+        var anySuccess = false
+        for (provider in getActiveProviders()) {
+            try {
                 registerProvider(provider)
+                anySuccess = true
+            } catch (e: Exception) {
+                // 部分 ROM 可能限制向 fused 注册 test provider，捕获后不影响其他 provider
+                e.printStackTrace()
             }
-            isRunning = true
-            true
-        } catch (e: SecurityException) {
-            e.printStackTrace()
-            isRunning = false
-            false
         }
+        isRunning = anySuccess
+        return isRunning
     }
 
     /**
@@ -88,14 +100,21 @@ class MockLocationEngine(private val context: Context) {
     fun stop() {
         if (!isRunning) return
 
-        val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
-        for (provider in providers) {
+        for (provider in getActiveProviders()) {
             try {
                 locationManager.setTestProviderEnabled(provider, false)
                 locationManager.removeTestProvider(provider)
             } catch (_: Exception) {}
         }
         isRunning = false
+        LocationStateProvider.updateLocation(
+            lat = currentLatitude,
+            lon = currentLongitude,
+            alt = currentAltitude,
+            spd = 0f,
+            brg = currentBearing,
+            active = false
+        )
     }
 
     private fun registerProvider(provider: String) {
@@ -153,6 +172,16 @@ class MockLocationEngine(private val context: Context) {
         val nowNanos = SystemClock.elapsedRealtimeNanos()
         val nowMillis = System.currentTimeMillis()
 
+        // 跨进程同步至 LocationStateProvider（供 LSPosed 模块直接读取）
+        LocationStateProvider.updateLocation(
+            lat = injectedLat,
+            lon = injectedLon,
+            alt = currentAltitude,
+            spd = speed,
+            brg = bearing,
+            active = true
+        )
+
         // 真实卫星可见数与载噪比（防止检测系统通过 0 卫星或空 extras 判定为虚拟定位）
         val satelliteCount = (profile.baseSatellites + random.nextInt(4)).coerceAtLeast(6)
         val meanCn0 = 31.5f + random.nextFloat() * 4.0f
@@ -169,7 +198,7 @@ class MockLocationEngine(private val context: Context) {
         lastNmeaRmc = NmeaUtils.buildGprmc(injectedLat, injectedLon, speed, bearing, nowMillis)
         lastNmeaGga = NmeaUtils.buildGpgga(injectedLat, injectedLon, currentAltitude, satelliteCount, nowMillis)
 
-        for (provider in listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)) {
+        for (provider in getActiveProviders()) {
             val loc = Location(provider).apply {
                 latitude = injectedLat
                 longitude = injectedLon

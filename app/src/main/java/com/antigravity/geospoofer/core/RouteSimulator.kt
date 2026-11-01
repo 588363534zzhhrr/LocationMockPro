@@ -1,5 +1,6 @@
 package com.antigravity.geospoofer.core
 
+import com.antigravity.geospoofer.provider.LocationStateProvider
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -261,6 +262,8 @@ class RouteSimulator(
                         val calculatedSteps = (overallCumulativeDistance / strideLengthMeters).toLong()
                         val cadence = if (speedToUse > 0.4f) ((speedToUse / strideLengthMeters) * 60).toInt() else 0
                         val calories = (overallCumulativeDistance * 0.062).toInt()
+                        // 跨进程同步计步器至 LocationStateProvider（供 LSPosed 模块直接注入目标 App 传感器）
+                        LocationStateProvider.updateSteps(calculatedSteps, cadence)
 
                         // 6. 海拔与爬升计算
                         var currentElevation = 35.0

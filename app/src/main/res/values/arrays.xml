@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- LSPosed 建议作用域（留空表示允许用户在 LSPosed Manager 中自由勾选任意应用） -->
+    <string-array name="xposed_scope">
+    </string-array>
+</resources>
