@@ -2,10 +2,11 @@
 
 [![Android](https://img.shields.io/badge/Platform-Android%208.0%20~%2015%20(API%2026--35)-brightgreen.svg)](https://developer.android.com)
 [![Architecture Rating](https://img.shields.io/badge/Architecture%20Review-S%2B%20(Production--Ready)-success.svg)](https://github.com/588363534zzhhrr/LocationMockPro)
+[![Version](https://img.shields.io/badge/Version-v1.1.1-blue.svg)](https://github.com/588363534zzhhrr/LocationMockPro/releases)
 [![LSPosed](https://img.shields.io/badge/Module-LSPosed%20%2F%20Xposed%20Supported-purple.svg)](https://github.com/LSPosed/LSPosed)
 [![Kotlin](https://img.shields.io/badge/Language-Kotlin%202.0%2B-blue.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-purple.svg)](https://developer.android.com/jetpack/compose)
-[![Release Package](https://img.shields.io/badge/Release%20APK-1.51%20MB%20(R8%20Optimized)-informational.svg)](https://github.com/588363534zzhhrr/LocationMockPro/releases)
+[![Release Package](https://img.shields.io/badge/Release%20APK-1.46%20MB%20(R8%20Optimized)-informational.svg)](https://github.com/588363534zzhhrr/LocationMockPro/releases)
 [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg)](LICENSE)
 
 `LocationMockPro` 是一套面向移动安全研究、高精度自动化测试与地理位置算法验证的 **工业级 Android 深度仿真框架**。项目不仅提供全套高拟真传感器动力学算法与悬浮微操交互，更深度集成了原生 **LSPosed / Xposed 系统底层免杀 Hook 引擎**，具备全闭环的物理与无线电环境指纹伪装能力，正式获评 **S+ 级（Release 产线封版状态）** 工业级交付标准。
@@ -15,10 +16,11 @@
 ## 🌟 核心功能特性矩阵
 
 ### 1. 🛡️ LSPosed 系统级免杀 Hook 引擎 (`XposedEntry.kt`)
-- **系统标志位彻底抹除**：底层拦截 `Location.isFromMockProvider()`、Android 12+ (API 31) 的 `Location.isMock()` 并永真返回 `false`；清除 `Location.getExtras()` 中 `mockLocation` 标记。
+- **系统标志位彻底抹除**：底层拦截 `Location.isFromMockProvider()`、Android 12+ (API 31) 的 `Location.isMock()` 并永真返回 `false`；清除 `Location.getExtras()` 中 `mockLocation` / `isMock` 标记。
+- **全星历卫星 Extras 深度补齐**：注入 Location 时自动附带 `satellites=16`、`maxSatellites=28`、`meanCn0=33.5f`、`numSatellitesInView=16` 等全套卫星状态参数，彻底杜绝大厂安全 SDK 依赖“0 卫星/空 Extras”判定作弊。
 - **开发者选项与权限沙箱遮蔽**：拦截 `Settings.Secure.getString/getInt("mock_location")` 强制返回 `0`；Hook `AppOpsManager.checkOp(OP_MOCK_LOCATION, 58)` 返回 `MODE_IGNORED`，彻底瓦解银行与大厂 App 的权限交叉比对。
 - **Android 11+ 包可见性 (Package Visibility) 终极穿透**：宿主侧 Hook `ApplicationPackageManager.canPackageQuery` 与 `resolveContentProvider` 动态补齐 `ProviderInfo`，即使宿主未配置 `<queries>` 标签亦可秒级穿透。
-- **LSPosed Manager 原生适配**：清单配置 `xposedmodule`，并在 `arrays.xml` 预置包含钉钉、企业微信、Keep、Pokémon GO、滴滴、美团等 12 款主流高频目标 App 的推荐勾选作用域。
+- **LSPosed Manager 原生适配**：清单配置 `xposedmodule`，并在 `arrays.xml` 预置包含运动世界校园、闪动校园、钉钉、企业微信、Keep、Pokémon GO、滴滴、美团等主流高频目标 App 的推荐勾选作用域。
 
 ### 2. ⚡ 纳秒时钟、动态精度与物理状态机自治
 - **双时钟物理同步**：每次位置更新同步刷新 `location.time = System.currentTimeMillis()` 与纳秒级单调时钟 `location.elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()`，穿透 `FusedLocationProvider` 的时间戳交叉防作弊校验。
@@ -30,19 +32,28 @@
 - **基站 `CellInfoLte` 完备装配**：反射构造合规中国移动 LTE 基站信息，写入合法 MCC (`460`)、MNC (`00`)、TAC、CI 以及非空 `CellSignalStrengthLte`（`-75 ~ -84 dBm`，Level 4），根除国内主流定位 SDK（高德/百度/腾讯）因信号对象为空导致的 `NullPointerException` 崩溃。
 - **企业 Wi-Fi 扫描与连接指纹注入**：拦截 `WifiManager.getConnectionInfo()` 与 `getScanResults()`，按需注入目标企业打卡路由器的 SSID、BSSID 及 `-52 dBm` 拟真 RSSI。
 
-### 4. 🏃 硬件步频联动与开机基准值增量叠加
-- **开机物理基数锚定**：拦截硬件计步传感器 `Sensor.TYPE_STEP_COUNTER (19)`，首次回调时捕获底层硬件真实步数 `baseHardwareSteps`（无硬件回调时以 `12580f` 垫底），向目标 App 注入 `baseHardwareSteps + simulatedSteps` 的连续增量，符合 Android 物理步数单调递增契约。
+### 4. 🏃 模拟器主动计步器仿真与开机基准增量叠加
+- **无硬件计步设备/模拟器主动事件生成 (Active Sensor Dispatcher)**：
+  - 拦截 `SensorManager.getDefaultSensor`，在**安卓模拟器（如 MuMu）**或无计步硬件设备上伪装注入标准的 **Bosch 硬件计步传感器**；
+  - 维持 `activeStepListeners` 调度队列，在后台由独立调度线程按照真实跑步速度与步频主动合成合规的 `SensorEvent` 投递给宿主应用，彻底攻克模拟器“有位移但步数为零”被判定为骑车/作弊的风控痛点！
+- **真机开机物理基数锚定**：真实设备上首次回调捕获底层硬件步数 `baseHardwareSteps`（无硬件回调时以 `12580f` 垫底），向目标 App 注入 `baseHardwareSteps + simulatedSteps` 的连续增量，符合 Android 物理步数单调递增契约。
 - **生理学步频阻尼**：速度与步频实时联动，拐角与红绿灯驻留时自动平滑衰减，步频传感器与 GPS 速度完全同步。
 
-### 5. 🪟 灵动悬浮控制岛 Pro & 巡航自走锁定 (Cruise Lock)
+### 5. 🏟️ 400m 标准田径场跑道与道路吸附双向纠偏
+- **400m 标准操场跑道一键生成**：严格按照国际田联（IAAF）标准几何规范（直道 84.4m + 弯道内半径 36.8m = 400.0m 封闭椭圆），支持在任意经纬度一键生成操场跑道，自动配置 5 圈（2.0 km）或自定义闭环循环。
+- **道路吸附 WGS-84 / GCJ-02 双向纠偏引擎**：OpenStreetMap OSRM 拓扑引擎在请求前先将 GCJ-02 转为 WGS-84，吸附返回后再转回 GCJ-02，彻底消除两点吸附在地图上的 500m~1km 剧烈偏移问题。
+
+### 6. 🪟 灵动悬浮控制岛 Pro & 巡航自走锁定 (Cruise Lock)
 - **极简灵动药丸模式 (Mini Capsule)**：一键折叠为贴边极小胶囊（`🕹️ 📍 7.2km/h · 1.0km ↗️`），在微信、打卡或游戏界面无遮挡；轻点即刻平滑展开。
 - **一键巡航锁定 (Cruise Lock)**：新增 `🔒 巡航自走锁定`，松开手指后沿当前航向与速度自动持续前行，免除长途游戏与跑量模拟时的按压疲劳。
 - **独立米级四向微调键**：集成 `[⬆️ 北微调]`、`[⬇️ 南]`、`[⬅️ 西]`、`[➡️ 东]`，单击精准向指定方位步进 2 米，专为高精度电子围栏打卡打造。
+- **摇杆触控防抖重构**：将触摸监听移至外层固定容器，推杆时如引擎未就绪自动补齐启动，彻底杜绝相对坐标反馈引起的抖动。
 
-### 6. 🛡️ 进程生命周期与三级 IPC 容错防崩
+### 7. 🛡️ 前台服务强保活与三级 IPC 容错防崩
+- **前台服务强生命周期守护**：显式结合 `startForegroundService` 与 `bindService`，彻底解决切出后台/锁屏时 Activity 销毁导致模拟定位服务被系统回收的致命缺陷。
 - **`WeakReference` 闭包解耦双保险**：`ListenerDispatcher` 采用弱引用持有宿主 `LocationListener`，在派发 Runnable 内部**二次动态解引** `weakRef.get()`，结合 `pruneStaleDispatchers()` 存活性清扫，根除长尾劣质 App 忘记注销引发的 Activity 内存泄漏。
 - **三级容错 IPC 通道**：
-  - **Tier 1**：毫秒级 `ContentResolver.call("getState")` 极速跨进程通信；
+  - **Tier 1**：毫秒级 `ContentResolver.call("getState")` 极速跨进程通信（250ms 高频刷新）；
   - **Tier 2**：`ContentResolver.query()` 基于 `MatrixCursor` 自动降级退避；
   - **Tier 3**：LSPosed 原生 `XSharedPreferences`（`location_mock_pro_stealth_prefs`）只读持久化兜底，确保在极端沙箱环境下 100% 通信可达且永不阻塞或弄崩宿主应用。
 
@@ -53,30 +64,31 @@
 ```text
 LocationMockPro/
 ├── app/
-│   ├── build.gradle.kts                         # 产线级 R8 混淆配置与编译管线
+│   ├── build.gradle.kts                         # 产线级 R8 混淆配置与编译管线 (v1.1.1)
 │   ├── proguard-rules.pro                       # Xposed、Provider、Models 反射防剔除规则
 │   └── src/main/
 │       ├── AndroidManifest.xml                  # queries 包可见性、多进程 Provider 声明
 │       ├── assets/xposed_init                   # LSPosed 模块入口定义 (com.antigravity.geospoofer.hook.XposedEntry)
 │       ├── res/
-│       │   ├── values/arrays.xml                # LSPosed 建议作用域预置列表 (12 款核心 App)
+│       │   ├── values/arrays.xml                # LSPosed 建议作用域预置列表 (14 款核心与校园 App)
 │       │   └── xml/file_paths.xml               # GPX 安全分享路径配置
 │       └── java/com/antigravity/geospoofer/
-│           ├── MainActivity.kt                  # Jetpack Compose M3 核心控制台
+│           ├── MainActivity.kt                  # Jetpack Compose M3 核心控制台 (含400m操场与多坐标系)
 │           ├── hook/
-│           │   └── XposedEntry.kt               # LSPosed 终极免杀与物理多维状态机自治引擎
+│           │   └── XposedEntry.kt               # LSPosed 终极免杀、主动计步仿真与物理状态机自治
 │           ├── provider/
 │           │   └── LocationStateProvider.kt     # 跨进程毫秒级 IPC 双模状态广播 Provider
 │           ├── core/
 │           │   ├── MockLocationEngine.kt        # 底层双 Provider 注入与 NMEA GSV/GGA 发生器
 │           │   ├── RouteSimulator.kt            # 动力学步态、拐角减速、折返与目标守护
-│           │   ├── CoordinateUtils.kt           # WGS-84 / GCJ-02 / BD-09 三坐标系亚米级互转
+│           │   ├── CoordinateUtils.kt           # WGS-84 / GCJ-02 / BD-09 互转与标准400m操场生成
+│           │   ├── RoadSnapHelper.kt            # 双向纠偏 OSRM 道路吸附规划器
 │           │   ├── AntiDetectionAuditHelper.kt  # 六维防检测体检中心
 │           │   ├── GpxExportHelper.kt           # 标准 GPX 1.1 轨迹导出与分享
 │           │   └── RouteStorageHelper.kt        # 路线持久化与收藏夹
 │           ├── service/
 │           │   ├── MockLocationService.kt       # 前台常驻保活与防休眠定位服务
-│           │   └── FloatingJoystickService.kt   # 全局灵动胶囊悬浮窗与巡航锁定操纵
+│           │   └── FloatingJoystickService.kt   # 全局灵动胶囊悬浮窗与平滑防抖操纵
 │           └── ui/
 │               ├── MapWebView.kt                # 交互式路线标点地图
 │               └── theme/                       # Material 3 深色主题
@@ -95,7 +107,24 @@ LocationMockPro/
 | 构建模式 | 执行命令 | 产物路径 | 体积 | 特性说明 |
 | :--- | :--- | :--- | :---: | :--- |
 | **Debug** | `./gradlew assembleDebug` | `app/build/outputs/apk/debug/app-debug.apk` | 15.3 MB | 包含完整调试符号，开发联调首选 |
-| **Release** | `./gradlew assembleRelease` | `app/build/outputs/apk/release/app-release.apk` | **1.51 MB** | **R8 生产级混淆**、压缩率超 90%、去除冗余依赖、入口类安全留存 |
+| **Release** | `./gradlew assembleRelease` | `app/build/outputs/apk/release/app-release.apk` | **1.46 MB** | **R8 生产级混淆**、压缩率超 90%、去除冗余依赖、入口类安全留存 |
+
+---
+
+## 📝 更新日志 (Changelog)
+
+### v1.1.1 (Build 3) - 2026-11-02
+- **⚡ 架构加固**：
+  - 修复 `MockLocationService` 后台保活缺陷，显式结合 `startForegroundService` 与 `bindService`，切出后台不被系统杀死；
+  - 重构悬浮窗摇杆触控监听体系，彻底根治相对坐标正反馈引发的手指抖动跳跃；
+  - 调优 LSPosed 跨进程读取缓存至 `250ms`，消除 1Hz 阶梯状移动卡顿。
+- **🛡️ 模拟器计步与防风控增强**：
+  - 新增模拟器与无计步芯片设备专属的**主动虚拟计步事件分发器（Active Sensor Dispatcher）**，解决 MuMu 等模拟器中“零步数”作弊判定；
+  - 补齐 Location 注入实例中的卫星星历 `extras` 数据包（`satellites=16`、`numSatellitesInView=16` 等）；
+  - LSPosed 作用域白名单扩充校园跑主流应用（运动世界校园、闪动校园）。
+- **🛣️ 算法与交互**：
+  - 新增 `400m` 标准田径场操场跑道一键生成算法，完美闭环；
+  - 彻底解决道路吸附中 `GCJ-02 <-> WGS-84` 混淆造成的 500m~1km 航向漂移。
 
 ---
 
