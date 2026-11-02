@@ -2,7 +2,7 @@
 
 [![Android](https://img.shields.io/badge/Platform-Android%208.0%20~%2015%20(API%2026--35)-brightgreen.svg)](https://developer.android.com)
 [![Architecture Rating](https://img.shields.io/badge/Architecture%20Review-S%2B%20(Production--Ready)-success.svg)](https://github.com/588363534zzhhrr/LocationMockPro)
-[![Version](https://img.shields.io/badge/Version-v1.1.1-blue.svg)](https://github.com/588363534zzhhrr/LocationMockPro/releases)
+[![Version](https://img.shields.io/badge/Version-v1.1.2-blue.svg)](https://github.com/588363534zzhhrr/LocationMockPro/releases)
 [![LSPosed](https://img.shields.io/badge/Module-LSPosed%20%2F%20Xposed%20Supported-purple.svg)](https://github.com/LSPosed/LSPosed)
 [![Kotlin](https://img.shields.io/badge/Language-Kotlin%202.0%2B-blue.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-purple.svg)](https://developer.android.com/jetpack/compose)
@@ -112,6 +112,14 @@ LocationMockPro/
 ---
 
 ## 📝 更新日志 (Changelog)
+
+### v1.1.2 (Build 4) - 2026-11-02
+- **🛰️ 高精度 GNSS 3D 卫星合成引擎 (Synthetic GnssStatus)**：
+  - 彻底解决高德/百度地图定位 SDK 在虚拟机或室内因无法收到卫星回调报 `#1401: no enough satellites` 判定为“GPS信号弱”的痛点；
+  - 采用 `GnssStatus.Builder` 合成 16 颗全绿卫星（12 颗 GPS + 4 颗北斗，全部标记 `usedInFix=true`，平均信噪比 36 dB-Hz），以 1Hz 频率向高德 SDK 主动推流；
+  - 拦截 `addGpsStatusListener` 与 `getGpsStatus`，全覆盖老旧地图 SDK 版本；
+  - 原生模拟位置模式下收敛精度至 `2.8m ~ 4.6m` 黄金区间（符合高德优良信号 $\le 5.0\text{m}$ 判定标准），并补全 Extras 卫星字段；
+  - LSPosed 白名单补全【运动世界校园】官方正式主包名 `com.zjwh.android_wh_physicalfitness`。
 
 ### v1.1.1 (Build 3) - 2026-11-02
 - **⚡ 架构加固**：

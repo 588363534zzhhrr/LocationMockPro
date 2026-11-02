@@ -63,6 +63,7 @@ class XposedEntry : IXposedHookLoadPackage {
     // 活跃 Listener 调度封装器与调度器线程
     private val activeDispatchers = ConcurrentHashMap<Int, ListenerDispatcher>()
     private val activeStepListeners = ConcurrentHashMap<Int, StepListenerInfo>()
+    private val activeGnssCallbacks = ConcurrentHashMap<Int, WeakReference<android.location.GnssStatus.Callback>>()
     @Volatile private var isDispatcherRunning = false
     private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
 
@@ -528,19 +529,55 @@ class XposedEntry : IXposedHookLoadPackage {
                     XposedBridge.hookMethod(method, object : XC_MethodHook() {
                         override fun beforeHookedMethod(param: MethodHookParam) {
                             val callback = param.args.firstOrNull { it is android.location.GnssStatus.Callback } as? android.location.GnssStatus.Callback ?: return
+                            activeGnssCallbacks[System.identityHashCode(callback)] = WeakReference(callback)
                             mainHandler.postDelayed({
                                 try {
                                     val state = getSimState()
                                     if (state != null && state.isMocking) {
                                         callback.onStarted()
                                         callback.onFirstFix(800)
+                                        val status = buildSyntheticGnssStatus()
+                                        if (status != null) {
+                                            callback.onSatelliteStatusChanged(status)
+                                        }
                                     }
                                 } catch (_: Throwable) {}
-                            }, 400L)
+                            }, 300L)
                         }
                     })
                 }
+
+                // Hook unregisterGnssStatusCallback
+                try {
+                    val unregisterMethod = LocationManager::class.java.getMethod("unregisterGnssStatusCallback", android.location.GnssStatus.Callback::class.java)
+                    XposedBridge.hookMethod(unregisterMethod, object : XC_MethodHook() {
+                        override fun beforeHookedMethod(param: MethodHookParam) {
+                            val callback = param.args[0] as? android.location.GnssStatus.Callback ?: return
+                            activeGnssCallbacks.remove(System.identityHashCode(callback))
+                        }
+                    })
+                } catch (_: Throwable) {}
             }
+
+            // E. Hook addGpsStatusListener (针对旧版地图 SDK)
+            try {
+                val method = LocationManager::class.java.getMethod("addGpsStatusListener", android.location.GpsStatus.Listener::class.java)
+                XposedBridge.hookMethod(method, object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        val listener = param.args[0] as? android.location.GpsStatus.Listener ?: return
+                        mainHandler.postDelayed({
+                            try {
+                                val state = getSimState()
+                                if (state != null && state.isMocking) {
+                                    listener.onGpsStatusChanged(android.location.GpsStatus.GPS_EVENT_STARTED)
+                                    listener.onGpsStatusChanged(android.location.GpsStatus.GPS_EVENT_FIRST_FIX)
+                                    listener.onGpsStatusChanged(android.location.GpsStatus.GPS_EVENT_SATELLITE_STATUS)
+                                }
+                            } catch (_: Throwable) {}
+                        }, 400L)
+                    }
+                })
+            } catch (_: Throwable) {}
         } catch (_: Throwable) {}
     }
 
@@ -640,6 +677,25 @@ class XposedEntry : IXposedHookLoadPackage {
                                         val h = info.targetHandler ?: mainHandler
                                         h.post {
                                             try { listener.onSensorChanged(event) } catch (_: Throwable) {}
+                                        }
+                                    }
+                                }
+                            }
+
+                            // GNSS 卫星状态主动仿真事件推流（持续向高德/百度等地图 SDK 提供 16 颗有效卫星与强信号）
+                            if (activeGnssCallbacks.isNotEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                                val status = buildSyntheticGnssStatus()
+                                if (status != null) {
+                                    val iterator = activeGnssCallbacks.entries.iterator()
+                                    while (iterator.hasNext()) {
+                                        val entry = iterator.next()
+                                        val cb = entry.value.get()
+                                        if (cb == null) {
+                                            iterator.remove()
+                                        } else {
+                                            mainHandler.post {
+                                                try { cb.onSatelliteStatusChanged(status) } catch (_: Throwable) {}
+                                            }
                                         }
                                     }
                                 }
@@ -906,6 +962,53 @@ class XposedEntry : IXposedHookLoadPackage {
         } catch (_: Throwable) {
             null
         }
+    }
+
+    /**
+     * 构造用于主动回调投递的高保真 3D 锁定 GnssStatus 实例 (支持 12 颗 GPS + 4 颗北斗卫星)
+     */
+    private fun buildSyntheticGnssStatus(): android.location.GnssStatus? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                val builder = android.location.GnssStatus.Builder()
+                // 12 GPS 卫星 (1~12)
+                for (i in 1..12) {
+                    builder.addSatellite(
+                        android.location.GnssStatus.CONSTELLATION_GPS,
+                        i,
+                        33.5f + (i % 5) * 1.8f, // 33.5 ~ 40.7 dB-Hz 强卫星载噪比
+                        (35.0f + (i * 3) % 40).toFloat(),   // elevation
+                        ((i * 28.0f) % 360f).toFloat(),     // azimuth
+                        true,                   // hasEphemeris
+                        true,                   // hasAlmanac
+                        true,                   // usedInFix (高德定位判定 GPS_ACCURACY_GOOD 的关键依据)
+                        true,                   // hasCarrierFrequency
+                        1575420000.0f,          // carrierFrequencyHz (L1)
+                        true,                   // hasBasebandCn0DbHz
+                        30.5f                   // basebandCn0DbHz
+                    )
+                }
+                // 4 北斗卫星 (1~4)
+                for (i in 1..4) {
+                    builder.addSatellite(
+                        android.location.GnssStatus.CONSTELLATION_BEIDOU,
+                        i,
+                        35.0f + (i % 3) * 2.0f,
+                        (55.0f + (i * 4) % 25).toFloat(),
+                        ((i * 75.0f) % 360f).toFloat(),
+                        true,
+                        true,
+                        true,
+                        true,
+                        1561098000.0f,          // carrierFrequencyHz (B1)
+                        true,
+                        32.0f
+                    )
+                }
+                return builder.build()
+            } catch (_: Throwable) {}
+        }
+        return null
     }
 
     /**

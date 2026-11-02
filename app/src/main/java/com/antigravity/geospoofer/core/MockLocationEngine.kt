@@ -160,10 +160,16 @@ class MockLocationEngine(private val context: Context) {
 
         @Suppress("DEPRECATION")
         try {
+            val statusBundle = Bundle().apply {
+                putInt("satellites", 18)
+                putInt("Satellites", 18)
+                putInt("maxSatellites", 28)
+                putFloat("meanCn0", 33.5f)
+            }
             locationManager.setTestProviderStatus(
                 provider,
                 android.location.LocationProvider.AVAILABLE,
-                null,
+                statusBundle,
                 System.currentTimeMillis()
             )
         } catch (_: Exception) {}
@@ -217,9 +223,13 @@ class MockLocationEngine(private val context: Context) {
         lastMeanCn0 = meanCn0
         val extras = Bundle().apply {
             putInt("satellites", satelliteCount)
+            putInt("Satellites", satelliteCount)
             putInt("maxSatellites", 28)
             putFloat("meanCn0", meanCn0)
             putInt("numSatellitesInView", satelliteCount)
+            putInt("numSatellitesUsedInFix", satelliteCount)
+            putBoolean("mockLocation", false)
+            putBoolean("isMock", false)
         }
 
         // 生成真实有效的 NMEA-0183 协议语句 (RMC/GGA/GSV)
@@ -227,8 +237,8 @@ class MockLocationEngine(private val context: Context) {
         lastNmeaGga = NmeaUtils.buildGpgga(injectedLat, injectedLon, currentAltitude, satelliteCount, nowMillis)
         lastNmeaGsv = NmeaUtils.buildGpgsv(satelliteCount, nowMillis).joinToString("\n")
 
-        // 3.5f ~ 8.0f 米拟真动态微幅波动（切勿恒定为整数）
-        val dynamicAccuracy = (profile.baseAccuracyMeters + (random.nextFloat() * 2.2f) + (Math.sin(nowMillis / 1200.0).toFloat() * 1.2f)).coerceIn(3.5f, 8.0f)
+        // 2.8f ~ 4.6f 米高精度微幅波动，完美契合高德/百度定位良好信号阈值 (<= 5.0m)
+        val dynamicAccuracy = (profile.baseAccuracyMeters.coerceAtMost(3.0f) + (random.nextFloat() * 1.2f) + (Math.sin(nowMillis / 1200.0).toFloat() * 0.4f)).coerceIn(2.8f, 4.6f)
 
         val targets = if (registeredProviders.isNotEmpty()) registeredProviders.toList() else getActiveProviders()
         for (provider in targets) {
