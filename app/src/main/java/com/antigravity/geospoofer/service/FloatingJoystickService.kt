@@ -370,11 +370,13 @@ class FloatingJoystickService : Service() {
 
         val maxRadius = 65.0
 
-        stickView.setOnTouchListener { _, event ->
+        joystickContainer?.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
-                    val dx = event.x - 40f
-                    val dy = event.y - 40f
+                    val centerX = (joystickContainer?.width?.takeIf { it > 0 }?.toFloat() ?: 220f) / 2f
+                    val centerY = (joystickContainer?.height?.takeIf { it > 0 }?.toFloat() ?: 220f) / 2f
+                    val dx = event.x - centerX
+                    val dy = event.y - centerY
                     val distance = sqrt((dx * dx + dy * dy).toDouble())
 
                     val clampedDist = distance.coerceAtMost(maxRadius)

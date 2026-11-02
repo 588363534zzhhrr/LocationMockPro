@@ -182,6 +182,74 @@ object CoordinateUtils {
         return points
     }
 
+    /**
+     * 生成标准 400 米国际田联标准田径场跑道闭环路线（包含两条直道与两段半圆弯道，完美适配校园跑、体测与操场巡航）
+     * @param centerLat 操场中心纬度
+     * @param centerLon 操场中心经度
+     * @param orientationDeg 跑道长轴航向角（0 为南北向，90 为东西向）
+     */
+    fun generateTrack400m(
+        centerLat: Double,
+        centerLon: Double,
+        orientationDeg: Float = 0f
+    ): List<LatLng> {
+        val halfL = 42.2   // 直道半长：直道全长约 84.4 米
+        val radius = 36.8  // 内道跑步线转弯半径：半径约 36.8 米（标准 400 米）
+        val radOrientation = Math.toRadians(orientationDeg.toDouble())
+        val cosO = cos(radOrientation)
+        val sinO = sin(radOrientation)
+
+        val localCoords = mutableListOf<Pair<Double, Double>>() // (dx, dy) 相对中心（米）
+
+        // 1. 东侧直道（从北向南）
+        localCoords.add(Pair(radius, halfL))
+        localCoords.add(Pair(radius, 0.0))
+        localCoords.add(Pair(radius, -halfL))
+
+        // 2. 南侧半圆弯道（从东向西）
+        val steps = 8
+        for (i in 1..steps) {
+            val angle = 0.0 - (i.toDouble() / steps) * PI // 0 -> -PI
+            val dx = radius * cos(angle)
+            val dy = -halfL + radius * sin(angle)
+            localCoords.add(Pair(dx, dy))
+        }
+
+        // 3. 西侧直道（从南向北）
+        localCoords.add(Pair(-radius, -halfL))
+        localCoords.add(Pair(-radius, 0.0))
+        localCoords.add(Pair(-radius, halfL))
+
+        // 4. 北侧半圆弯道（从西向东）
+        for (i in 1..steps) {
+            val angle = PI - (i.toDouble() / steps) * PI // PI -> 0
+            val dx = radius * cos(angle)
+            val dy = halfL + radius * sin(angle)
+            localCoords.add(Pair(dx, dy))
+        }
+
+        // 将旋转后的局部米级坐标转换为真实经纬度
+        val points = mutableListOf<LatLng>()
+        for ((lx, ly) in localCoords) {
+            val rotX = lx * cosO - ly * sinO
+            val rotY = lx * sinO + ly * cosO
+            val dist = sqrt(rotX * rotX + rotY * rotY)
+            if (dist < 0.1) {
+                points.add(LatLng(centerLat, centerLon))
+            } else {
+                var bearing = Math.toDegrees(atan2(rotX, rotY)).toFloat()
+                if (bearing < 0) bearing += 360f
+                points.add(movePoint(centerLat, centerLon, dist, bearing))
+            }
+        }
+
+        // 保证完美闭环
+        if (points.isNotEmpty()) {
+            points.add(points.first())
+        }
+        return points
+    }
+
     private fun transformLat(x: Double, y: Double): Double {
         var ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * sqrt(abs(x))
         ret += (20.0 * sin(6.0 * x * PI) + 20.0 * sin(2.0 * x * PI)) * 2.0 / 3.0

@@ -177,7 +177,9 @@ class MockLocationService : Service() {
      * @param intensity 摇杆推杆力度（0.0 ~ 1.0）
      */
     fun onJoystickMove(angleDegrees: Float, intensity: Float) {
-        if (!engine.isRunning) return
+        if (!engine.isRunning) {
+            engine.start()
+        }
 
         val speed = routeSimulator.customSpeedMps * intensity
         // 假设摇杆刷新间隔大约为 200ms

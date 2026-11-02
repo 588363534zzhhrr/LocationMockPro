@@ -127,6 +127,13 @@ class MainActivity : ComponentActivity() {
                                 CoordinateUtils.LatLng(lat, lon)
                             }
 
+                            try {
+                                androidx.core.content.ContextCompat.startForegroundService(
+                                    this,
+                                    Intent(this, MockLocationService::class.java)
+                                )
+                            } catch (_: Exception) {}
+
                             val success = mockService?.startMock(finalCoords.latitude, finalCoords.longitude) ?: false
                             if (success) {
                                 isMocking = true
@@ -154,6 +161,14 @@ class MainActivity : ComponentActivity() {
                             } else {
                                 waypoints
                             }
+
+                            try {
+                                androidx.core.content.ContextCompat.startForegroundService(
+                                    this,
+                                    Intent(this, MockLocationService::class.java)
+                                )
+                            } catch (_: Exception) {}
+
                             val success = mockService?.startRoute(finalWaypoints, mode, targetMeters) ?: false
                             if (success) {
                                 isMocking = true
@@ -972,12 +987,14 @@ fun MainScreen(
                                 shape = RoundedCornerShape(8.dp),
                                 color = Color(0xFF2C2C2C),
                                 modifier = Modifier.clickable {
-                                    latText = place.latitude.toString()
-                                    lonText = place.longitude.toString()
+                                    latText = "%.6f".format(place.latitude)
+                                    lonText = "%.6f".format(place.longitude)
+                                    coordSystemSingle = "GCJ02"
+                                    isGcj02Single = true
                                     mapController.setSinglePoint(place.latitude, place.longitude)
                                     mapController.flyToLocation(place.latitude, place.longitude)
                                     if (isMocking) {
-                                        onStartMock(place.latitude, place.longitude, isGcj02Single)
+                                        onStartMock(place.latitude, place.longitude, true)
                                     }
                                     Toast.makeText(context, "已秒移至: ${place.name}", Toast.LENGTH_SHORT).show()
                                 }
@@ -1628,7 +1645,7 @@ fun MainScreen(
                                         isSnappingRoad = true
                                         coroutineScope.launch {
                                             Toast.makeText(context, "正在沿真实街道/人行道规划贴合路径...", Toast.LENGTH_SHORT).show()
-                                            val result = RoadSnapHelper.snapWaypointsToRoad(waypoints, RoadSnapHelper.SnapProfile.WALKING)
+                                            val result = RoadSnapHelper.snapWaypointsToRoad(waypoints, RoadSnapHelper.SnapProfile.WALKING, isGcj02Route)
                                             result.onSuccess { snapped ->
                                                 waypoints = snapped
                                                 mapController.setRouteWaypoints(snapped)
@@ -1654,6 +1671,25 @@ fun MainScreen(
                                 contentPadding = PaddingValues(horizontal = 4.dp)
                             ) {
                                 Text("🎲 环形跑", fontSize = 12.sp)
+                            }
+                            // 🏟️ 400m操场标准跑道
+                            TextButton(
+                                onClick = {
+                                    val center = waypoints.firstOrNull() ?: CoordinateUtils.LatLng(
+                                        latText.toDoubleOrNull() ?: 39.908823,
+                                        lonText.toDoubleOrNull() ?: 116.397470
+                                    )
+                                    val track = CoordinateUtils.generateTrack400m(center.latitude, center.longitude)
+                                    waypoints = track
+                                    mapController.setRouteWaypoints(track)
+                                    mapController.fitRoute()
+                                    routeMode = RouteSimulator.RouteMode.RING_LOOP
+                                    targetDistanceKm = 2.0
+                                    Toast.makeText(context, "🏟️ 已生成 400m 标准操场跑道（预设 5 圈 / 2.0 km 闭环巡航）", Toast.LENGTH_SHORT).show()
+                                },
+                                contentPadding = PaddingValues(horizontal = 4.dp)
+                            ) {
+                                Text("🏟️ 400m操场", fontSize = 12.sp)
                             }
                             // 🔄 原路折返
                             TextButton(

@@ -1352,14 +1352,18 @@
       }
     }
 
-    // 沿马路自动吸附规划路径
+    // 沿马路自动吸附规划路径（严格将 GCJ-02 纠偏至 WGS-84 请求 OSRM，再转换回 GCJ-02 精确渲染）
     function snapRouteToRoad(fromPt, toPt) {
       var profile = snapModes[snapModeIndex].id;
       showToast("正在规划街道吸附路径 (" + snapModes[snapModeIndex].label + ")...");
-      var osrmUrl = `https://router.project-osrm.org/route/v1/${profile}/${fromPt.lon},${fromPt.lat};${toPt.lon},${toPt.lat}?overview=full&geometries=geojson`;
+      var wgsFrom = CoordTransform.gcj02ToWgs84(fromPt.lat, fromPt.lon);
+      var wgsTo = CoordTransform.gcj02ToWgs84(toPt.lat, toPt.lon);
+      var osrmUrl = 'https://router.project-osrm.org/route/v1/' + profile + '/' +
+                    wgsFrom[1].toFixed(6) + ',' + wgsFrom[0].toFixed(6) + ';' +
+                    wgsTo[1].toFixed(6) + ',' + wgsTo[0].toFixed(6) + '?overview=full&geometries=geojson';
 
       var controller = new AbortController();
-      var timeoutId = setTimeout(function() { controller.abort(); }, 3000);
+      var timeoutId = setTimeout(function() { controller.abort(); }, 4000);
 
       fetch(osrmUrl, { signal: controller.signal })
         .then(function(res) { return res.json(); })
@@ -1370,9 +1374,10 @@
             // 采样步长（若点太多，每隔 2~3 个点取一个）
             var step = Math.max(1, Math.floor(coords.length / 15));
             for (var i = 1; i < coords.length; i += step) {
-              var cLon = parseFloat(coords[i][0].toFixed(6));
-              var cLat = parseFloat(coords[i][1].toFixed(6));
-              addWaypoint(cLat, cLon, false);
+              var wgsLon = coords[i][0];
+              var wgsLat = coords[i][1];
+              var gcj = CoordTransform.wgs84ToGcj02(wgsLat, wgsLon);
+              addWaypoint(parseFloat(gcj[0].toFixed(6)), parseFloat(gcj[1].toFixed(6)), false);
             }
             // 确保终点加入
             addWaypoint(toPt.lat, toPt.lon, true);

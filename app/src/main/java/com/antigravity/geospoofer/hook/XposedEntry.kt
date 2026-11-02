@@ -62,8 +62,15 @@ class XposedEntry : IXposedHookLoadPackage {
 
     // 活跃 Listener 调度封装器与调度器线程
     private val activeDispatchers = ConcurrentHashMap<Int, ListenerDispatcher>()
+    private val activeStepListeners = ConcurrentHashMap<Int, StepListenerInfo>()
     @Volatile private var isDispatcherRunning = false
     private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
+
+    private class StepListenerInfo(
+        val weakListener: WeakReference<SensorEventListener>,
+        val sensor: Sensor,
+        val targetHandler: Handler?
+    )
 
     // 进程内缓存模拟状态（避免高频 IPC 跨进程开销，1 秒缓存过期刷新）
     private var cachedState: RemoteState? = null
@@ -319,9 +326,29 @@ class XposedEntry : IXposedHookLoadPackage {
     }
 
     /**
-     * 硬件传感器 Hook：基于真实开机步数 baseHardwareSteps 进行增量平滑叠加
+     * 硬件传感器 Hook：基于真实开机步数 baseHardwareSteps 进行增量平滑叠加，支持无传感器设备/模拟器主动虚拟仿真
      */
     private fun hookSensors(lpparam: XC_LoadPackage.LoadPackageParam) {
+        // A. 拦截 getDefaultSensor：在无物理计步器的模拟器或低端设备中伪装成博世高精度计步传感器
+        try {
+            XposedHelpers.findAndHookMethod(
+                SensorManager::class.java,
+                "getDefaultSensor",
+                Int::class.javaPrimitiveType,
+                object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        val type = param.args[0] as? Int ?: return
+                        if (type == Sensor.TYPE_STEP_COUNTER || type == Sensor.TYPE_STEP_DETECTOR) {
+                            if (param.result == null) {
+                                param.result = createFakeStepSensor(type)
+                            }
+                        }
+                    }
+                }
+            )
+        } catch (_: Throwable) {}
+
+        // B. 拦截 registerListener：捕获目标应用注册的计步器回调并开启主动仿真推送
         try {
             val registerMethods = SensorManager::class.java.declaredMethods.filter {
                 it.name == "registerListener" && it.parameterTypes.isNotEmpty() &&
@@ -332,11 +359,35 @@ class XposedEntry : IXposedHookLoadPackage {
                 XposedBridge.hookMethod(method, object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         val listener = param.args[0] as? SensorEventListener ?: return
-                        val sensor = param.args.getOrNull(1) as? Sensor
-
-                        if (sensor != null && (sensor.type == Sensor.TYPE_STEP_COUNTER || sensor.type == Sensor.TYPE_STEP_DETECTOR)) {
-                            hookSensorEventListener(listener)
+                        val sensor = param.args.getOrNull(1) as? Sensor ?: return
+                        var targetHandler: Handler? = null
+                        for (arg in param.args) {
+                            if (arg is Handler) targetHandler = arg
                         }
+
+                        if (sensor.type == Sensor.TYPE_STEP_COUNTER || sensor.type == Sensor.TYPE_STEP_DETECTOR) {
+                            hookSensorEventListener(listener)
+                            activeStepListeners[System.identityHashCode(listener)] = StepListenerInfo(
+                                WeakReference(listener),
+                                sensor,
+                                targetHandler
+                            )
+                            ensureActiveDispatcher()
+                        }
+                    }
+                })
+            }
+
+            // 拦截 unregisterListener 及时注销
+            val unregisterMethods = SensorManager::class.java.declaredMethods.filter {
+                it.name == "unregisterListener" && it.parameterTypes.isNotEmpty() &&
+                        SensorEventListener::class.java.isAssignableFrom(it.parameterTypes[0])
+            }
+            for (method in unregisterMethods) {
+                XposedBridge.hookMethod(method, object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        val listener = param.args[0] as? SensorEventListener ?: return
+                        activeStepListeners.remove(System.identityHashCode(listener))
                     }
                 })
             }
@@ -568,6 +619,31 @@ class XposedEntry : IXposedHookLoadPackage {
                                     }
                                 }
                             }
+
+                            // 计步器主动仿真事件分发（为无物理计步器的模拟器与静止真机主动推送步数事件）
+                            if (activeStepListeners.isNotEmpty() && state.totalSteps > 0) {
+                                val activeStepEntries = activeStepListeners.entries.toList()
+                                for (entry in activeStepEntries) {
+                                    val info = entry.value
+                                    val listener = info.weakListener.get()
+                                    if (listener == null) {
+                                        activeStepListeners.remove(entry.key)
+                                        continue
+                                    }
+                                    val stepVal = if (info.sensor.type == Sensor.TYPE_STEP_COUNTER) {
+                                        baseHardwareSteps + state.totalSteps.toFloat()
+                                    } else {
+                                        1.0f
+                                    }
+                                    val event = createFakeSensorEvent(info.sensor, stepVal)
+                                    if (event != null) {
+                                        val h = info.targetHandler ?: mainHandler
+                                        h.post {
+                                            try { listener.onSensorChanged(event) } catch (_: Throwable) {}
+                                        }
+                                    }
+                                }
+                            }
                         }
                     } catch (_: Throwable) {}
                 }
@@ -786,6 +862,53 @@ class XposedEntry : IXposedHookLoadPackage {
     }
 
     /**
+     * 动态构造符合 AOSP 规范的合法虚拟硬件计步器传感器（供模拟器环境免杀注入）
+     */
+    private fun createFakeStepSensor(type: Int): Sensor? {
+        return try {
+            val sensor = XposedHelpers.newInstance(Sensor::class.java) as Sensor
+            try { XposedHelpers.setIntField(sensor, "mType", type) } catch (_: Throwable) {}
+            try { XposedHelpers.setObjectField(sensor, "mName", if (type == Sensor.TYPE_STEP_COUNTER) "BOSCH Step Counter Sensor" else "BOSCH Step Detector Sensor") } catch (_: Throwable) {}
+            try { XposedHelpers.setObjectField(sensor, "mVendor", "Bosch Sensortec") } catch (_: Throwable) {}
+            try { XposedHelpers.setIntField(sensor, "mVersion", 1) } catch (_: Throwable) {}
+            try { XposedHelpers.setFloatField(sensor, "mMaxRange", 100000.0f) } catch (_: Throwable) {}
+            try { XposedHelpers.setFloatField(sensor, "mResolution", 1.0f) } catch (_: Throwable) {}
+            try { XposedHelpers.setFloatField(sensor, "mPower", 0.05f) } catch (_: Throwable) {}
+            try { XposedHelpers.setIntField(sensor, "mMinDelay", 0) } catch (_: Throwable) {}
+            sensor
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    /**
+     * 构造用于主动回调投递的虚拟 SensorEvent 事件实例
+     */
+    private fun createFakeSensorEvent(sensor: Sensor, stepValue: Float): SensorEvent? {
+        return try {
+            val event = try {
+                XposedHelpers.newInstance(SensorEvent::class.java, 4) as SensorEvent
+            } catch (_: Throwable) {
+                try {
+                    XposedHelpers.newInstance(SensorEvent::class.java, 1) as SensorEvent
+                } catch (_: Throwable) {
+                    XposedHelpers.newInstance(SensorEvent::class.java) as SensorEvent
+                }
+            }
+            try { XposedHelpers.setObjectField(event, "sensor", sensor) } catch (_: Throwable) {}
+            try { XposedHelpers.setIntField(event, "accuracy", SensorManager.SENSOR_STATUS_ACCURACY_HIGH) } catch (_: Throwable) {}
+            try { XposedHelpers.setLongField(event, "timestamp", SystemClock.elapsedRealtimeNanos()) } catch (_: Throwable) {}
+            val values = event.values
+            if (values != null && values.isNotEmpty()) {
+                values[0] = stepValue
+            }
+            event
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    /**
      * 7. Android 11+ 包可见性 (Package Visibility) 终极穿透 Hook
      * 确保宿主应用在 targetSdkVersion >= 30 且未在 AndroidManifest 中声明 queries 时，
      * 依然可以无障碍解析并访问 LocationStateProvider 与模块包信息
@@ -836,12 +959,21 @@ class XposedEntry : IXposedHookLoadPackage {
     }
 
     /**
-     * 纳秒级单调时钟与精度补齐：严禁恒定精度，生成 3.5m ~ 8.0m 动态波动值
+     * 纳秒级单调时钟与精度补齐：严禁恒定精度，生成 3.5m ~ 8.0m 动态波动值，并附带完备卫星星历 Extras
      */
     private fun buildSpoofedLocation(provider: String, state: RemoteState): Location {
         val nowNanos = SystemClock.elapsedRealtimeNanos()
         val nowMillis = System.currentTimeMillis()
         val dynamicAccuracy = (3.5f + (Math.sin(nowMillis / 1200.0) * 2.0 + ((nowNanos % 250).toFloat() / 100.0f)).toFloat()).coerceIn(3.5f, 8.0f)
+
+        val extras = Bundle().apply {
+            putInt("satellites", 16)
+            putInt("maxSatellites", 28)
+            putFloat("meanCn0", 33.5f)
+            putInt("numSatellitesInView", 16)
+            putBoolean("mockLocation", false)
+            putBoolean("isMock", false)
+        }
 
         return Location(provider).apply {
             latitude = state.latitude
@@ -852,6 +984,7 @@ class XposedEntry : IXposedHookLoadPackage {
             accuracy = dynamicAccuracy
             time = nowMillis
             elapsedRealtimeNanos = nowNanos
+            this.extras = extras
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 bearingAccuracyDegrees = 1.0f
                 speedAccuracyMetersPerSecond = 0.2f
@@ -865,7 +998,7 @@ class XposedEntry : IXposedHookLoadPackage {
      */
     private fun getSimState(): RemoteState? {
         val now = System.currentTimeMillis()
-        if (cachedState != null && now - lastFetchTime < 1000L) {
+        if (cachedState != null && now - lastFetchTime < 250L) {
             return cachedState
         }
 

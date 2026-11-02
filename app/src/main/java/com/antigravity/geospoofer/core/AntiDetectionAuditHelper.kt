@@ -116,7 +116,7 @@ object AntiDetectionAuditHelper {
                 statusText = "已就绪 (LocationStateProvider 跨进程联动)",
                 isPassed = true,
                 riskLevel = RiskLevel.SAFE,
-                suggestion = "已打通 SensorManager.TYPE_STEP_COUNTER Hook，配速步频实时注入硬件事件，杜绝零步数作弊判定。"
+                suggestion = "已打通 SensorManager.TYPE_STEP_COUNTER Hook，支持真实硬件步数增量叠加与模拟器主动虚拟仿真投递，彻底杜绝零步数风控判定。"
             )
         )
 

@@ -27,20 +27,29 @@ object RoadSnapHelper {
 
     /**
      * 将多个稀疏打点沿真实道路吸附连接，输出完整的沿街路网坐标流
+     * @param isGcj02Input 输入坐标是否为高德/腾讯火星坐标系（若是，将先纠偏至 WGS-84 请求 OSRM，并在返回后重新转回 GCJ-02）
      */
     suspend fun snapWaypointsToRoad(
         waypoints: List<CoordinateUtils.LatLng>,
-        profile: SnapProfile = SnapProfile.WALKING
+        profile: SnapProfile = SnapProfile.WALKING,
+        isGcj02Input: Boolean = true
     ): Result<List<CoordinateUtils.LatLng>> = withContext(Dispatchers.IO) {
         if (waypoints.size < 2) {
             return@withContext Result.success(waypoints)
         }
 
         try {
+            // 若输入为 GCJ-02，转换为 WGS-84 请求 OpenStreetMap OSRM 拓扑引擎
+            val wgsWaypoints = if (isGcj02Input) {
+                waypoints.map { CoordinateUtils.gcj02ToWgs84(it.latitude, it.longitude) }
+            } else {
+                waypoints
+            }
+
             val snappedList = mutableListOf<CoordinateUtils.LatLng>()
 
             // 若总点数较少，直接单次请求全量聚合；若点数过多，切片批量请求（重叠首尾点保证连贯）
-            val chunks = splitIntoOverlappingChunks(waypoints, MAX_WAYPOINTS_PER_BATCH)
+            val chunks = splitIntoOverlappingChunks(wgsWaypoints, MAX_WAYPOINTS_PER_BATCH)
 
             for (chunk in chunks) {
                 val batchPoints = fetchBatchRoadRoute(chunk, profile)
@@ -59,7 +68,14 @@ object RoadSnapHelper {
             }
 
             // 对整段曲线进行平滑控制，确保 UI 渲染与仿真引擎极速运行
-            val finalRoute = downsampleSmoothly(snappedList, maxPoints = 250)
+            val downsampled = downsampleSmoothly(snappedList, maxPoints = 250)
+
+            // 若输入为 GCJ-02，吸附完成后转换回 GCJ-02 供高德地图瓦片精确对齐显示
+            val finalRoute = if (isGcj02Input) {
+                downsampled.map { CoordinateUtils.wgs84ToGcj02(it.latitude, it.longitude) }
+            } else {
+                downsampled
+            }
             Result.success(finalRoute)
         } catch (e: Exception) {
             e.printStackTrace()
