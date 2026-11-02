@@ -22,28 +22,51 @@
       background: #e5e3df;
     }
 
-    /* Top Search Bar */
-    .search-box {
+    /* Top Search Container & Autocomplete Dropdown */
+    .search-container {
       position: absolute;
       top: 10px;
       left: 10px;
       z-index: 1000;
+      width: calc(100% - 130px);
+      max-width: 320px;
+    }
+    .search-box {
       display: flex;
       align-items: center;
-      background: rgba(255, 255, 255, 0.96);
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-      padding: 2px 6px;
-      backdrop-filter: blur(4px);
-      max-width: 260px;
+      background: rgba(255, 255, 255, 0.98);
+      border-radius: 10px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.22);
+      padding: 3px 6px;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(0,0,0,0.08);
+      position: relative;
     }
     .search-input {
       border: none;
       outline: none;
       font-size: 13px;
-      padding: 6px 8px;
-      width: 180px;
+      padding: 6px 6px;
+      flex: 1;
+      min-width: 0;
       background: transparent;
+      color: #222;
+      font-weight: 500;
+    }
+    .search-input::placeholder {
+      color: #999;
+      font-size: 12px;
+    }
+    .search-clear-btn {
+      background: transparent;
+      border: none;
+      color: #999;
+      font-size: 13px;
+      padding: 4px 6px;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .search-clear-btn:active {
       color: #333;
     }
     .search-btn {
@@ -51,13 +74,264 @@
       color: white;
       border: none;
       border-radius: 6px;
-      padding: 6px 10px;
+      padding: 6px 9px;
       font-size: 12px;
       font-weight: 600;
       cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
     }
     .search-btn:active {
       background: #1565C0;
+    }
+    .search-cfg-btn {
+      background: transparent;
+      border: none;
+      font-size: 14px;
+      padding: 4px 4px;
+      cursor: pointer;
+      color: #666;
+      line-height: 1;
+    }
+
+    /* Search Results Dropdown Panel */
+    .search-results-panel {
+      position: absolute;
+      top: 44px;
+      left: 0;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.98);
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.28);
+      border: 1px solid rgba(0,0,0,0.08);
+      backdrop-filter: blur(10px);
+      overflow: hidden;
+      max-height: 320px;
+      display: flex;
+      flex-direction: column;
+      z-index: 1001;
+      animation: fadeInDown 0.2s ease-out;
+    }
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .search-results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 10px;
+      background: #f7f9fa;
+      border-bottom: 1px solid #ebebeb;
+      font-size: 11px;
+      color: #666;
+      font-weight: 600;
+    }
+    .close-results-btn {
+      background: transparent;
+      border: none;
+      color: #888;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 2px 4px;
+    }
+    .search-results-list {
+      overflow-y: auto;
+      max-height: 270px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .search-item {
+      padding: 9px 10px;
+      border-bottom: 1px solid #f0f0f0;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .search-item:active {
+      background: #eef5fc;
+    }
+    .search-item-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 3px;
+    }
+    .search-item-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1a1a1a;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .search-item-badge {
+      font-size: 9px;
+      font-weight: 600;
+      padding: 1px 5px;
+      border-radius: 4px;
+      white-space: nowrap;
+      margin-left: 6px;
+    }
+    .badge-preset { background: #E8F5E9; color: #2E7D32; border: 1px solid #C8E6C9; }
+    .badge-amap { background: #FFF3E0; color: #E65100; border: 1px solid #FFE0B2; }
+    .badge-online { background: #E3F2FD; color: #1565C0; border: 1px solid #BBDEFB; }
+    .badge-coord { background: #EDE7F6; color: #512DA8; border: 1px solid #D1C4E9; }
+
+    .search-item-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: #777;
+    }
+    .search-item-addr {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 200px;
+    }
+    .search-item-dist {
+      color: #999;
+      font-size: 10px;
+      white-space: nowrap;
+    }
+    .search-empty {
+      padding: 18px 12px;
+      text-align: center;
+      color: #888;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    /* Modal for AMap Web Key */
+    .api-key-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      box-sizing: border-box;
+      backdrop-filter: blur(2px);
+    }
+    .modal-card {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 16px;
+      width: 100%;
+      max-width: 320px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+    .modal-title {
+      font-size: 14px;
+      font-weight: bold;
+      color: #222;
+      margin-bottom: 8px;
+    }
+    .modal-desc {
+      font-size: 11px;
+      color: #666;
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+    .modal-input {
+      width: 100%;
+      padding: 8px 10px;
+      box-sizing: border-box;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 12px;
+      outline: none;
+      margin-bottom: 14px;
+    }
+    .modal-input:focus {
+      border-color: #1976D2;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .modal-btn {
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+    }
+    .modal-btn-cancel {
+      background: #f0f0f0;
+      color: #444;
+    }
+    .modal-btn-save {
+      background: #1976D2;
+      color: white;
+    }
+
+    /* Search Target Pin */
+    .search-target-pin {
+      width: 34px;
+      height: 34px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .search-target-pulse {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: rgba(25, 118, 210, 0.45);
+      animation: targetPulse 1.6s infinite ease-out;
+    }
+    @keyframes targetPulse {
+      0% { transform: scale(0.8); opacity: 0.9; }
+      100% { transform: scale(2.2); opacity: 0; }
+    }
+    .search-target-center {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #1976D2;
+      color: white;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      border: 2px solid #ffffff;
+      z-index: 2;
+    }
+    .search-action-btn-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .search-act-btn {
+      padding: 5px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+    }
+    .search-act-single {
+      background: #D32F2F;
+      color: white;
+    }
+    .search-act-route {
+      background: #1976D2;
+      color: white;
+    }
+    .search-act-del {
+      background: #757575;
+      color: white;
     }
 
     /* Floating control bar (Right) */
@@ -193,10 +467,39 @@
 <body>
   <div id="map"></div>
 
-  <!-- Search Box -->
-  <div class="search-box">
-    <input type="text" id="search-input" class="search-input" placeholder="🔍 搜索地标/城市/地点" />
-    <button class="search-btn" onclick="executeSearch()">定位</button>
+  <!-- Top Search Container -->
+  <div class="search-container" id="search-container">
+    <div class="search-box">
+      <input type="text" id="search-input" class="search-input" placeholder="🔍 搜索地标/车站/高校/坐标" autocomplete="off" />
+      <button class="search-clear-btn" id="search-clear-btn" onclick="clearSearchInput()" style="display:none;" title="清空">✕</button>
+      <button class="search-btn" id="search-action-btn" onclick="executeSearch(true)">搜索</button>
+      <button class="search-cfg-btn" onclick="toggleApiKeyModal()" title="设置高德 Web Key (可选)">⚙️</button>
+    </div>
+
+    <!-- Dropdown Results Card -->
+    <div class="search-results-panel" id="search-results-panel" style="display:none;">
+      <div class="search-results-header">
+        <span id="search-results-title">🔍 搜索结果</span>
+        <button class="close-results-btn" onclick="hideSearchResults()">✕</button>
+      </div>
+      <div class="search-results-list" id="search-results-list"></div>
+    </div>
+  </div>
+
+  <!-- Optional AMap Web API Key Modal -->
+  <div class="api-key-modal" id="api-key-modal" style="display:none;">
+    <div class="modal-card">
+      <div class="modal-title">⚙️ 高德 Web 服务 Key 设置</div>
+      <div class="modal-desc">
+        默认已提供<b>全国核心地标库</b>与<b>Photon 智能纠偏搜索</b>。<br>
+        若您有高德开放平台 Web 服务 Key，填入后可解锁官方原生海量 POI 联想检索：
+      </div>
+      <input type="text" id="amap-key-input" class="modal-input" placeholder="输入高德 Web 服务 Key (留空使用默认)" />
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn-cancel" onclick="toggleApiKeyModal()">取消</button>
+        <button class="modal-btn modal-btn-save" onclick="saveAmapKey()">保存设置</button>
+      </div>
+    </div>
   </div>
 
   <!-- Floating Controls -->
@@ -230,29 +533,329 @@
     ];
     var snapModeIndex = 0;
 
-    // 常用城市和地标离线快捷字典
-    var PRESET_GEO = {
-      "北京": [39.9042, 116.4074],
-      "天安门": [39.9088, 116.3975],
-      "奥森": [40.0152, 116.3888],
-      "上海": [31.2304, 121.4737],
-      "外滩": [31.2397, 121.4998],
-      "东方明珠": [31.2398, 121.4997],
-      "陆家嘴": [31.2384, 121.5015],
-      "深圳": [22.5431, 114.0579],
-      "深圳湾": [22.4960, 113.9480],
-      "广州": [23.1291, 113.2644],
-      "广州塔": [23.1065, 113.3245],
-      "杭州": [30.2741, 120.1551],
-      "西湖": [30.2435, 120.1345],
-      "成都": [30.5728, 104.0668],
-      "春熙路": [30.6548, 104.0805],
-      "武汉": [30.5928, 114.3055],
-      "重庆": [29.5630, 106.5516],
-      "西安": [34.3416, 108.9398],
-      "南京": [32.0603, 118.7969],
-      "厦门": [24.4798, 118.0894]
+    // ================= 高精度坐标系转换工具 (WGS-84 / GCJ-02 / BD-09) =================
+    var CoordTransform = {
+      A: 6378245.0,
+      EE: 0.00669342162296594323,
+      PI: Math.PI,
+      X_PI: Math.PI * 3000.0 / 180.0,
+
+      outOfChina: function(lat, lon) {
+        if (lon < 72.004 || lon > 137.8347) return true;
+        if (lat < 0.8293 || lat > 55.8271) return true;
+        return false;
+      },
+
+      transformLat: function(x, y) {
+        var ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+        ret += (20.0 * Math.sin(6.0 * x * this.PI) + 20.0 * Math.sin(2.0 * x * this.PI)) * 2.0 / 3.0;
+        ret += (20.0 * Math.sin(y * this.PI) + 40.0 * Math.sin(y / 3.0 * this.PI)) * 2.0 / 3.0;
+        ret += (160.0 * Math.sin(y / 12.0 * this.PI) + 320 * Math.sin(y * this.PI / 30.0)) * 2.0 / 3.0;
+        return ret;
+      },
+
+      transformLon: function(x, y) {
+        var ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+        ret += (20.0 * Math.sin(6.0 * x * this.PI) + 20.0 * Math.sin(2.0 * x * this.PI)) * 2.0 / 3.0;
+        ret += (20.0 * Math.sin(x * this.PI) + 40.0 * Math.sin(x / 3.0 * this.PI)) * 2.0 / 3.0;
+        ret += (150.0 * Math.sin(x / 12.0 * this.PI) + 300.0 * Math.sin(x / 30.0 * this.PI)) * 2.0 / 3.0;
+        return ret;
+      },
+
+      // WGS-84 (GPS/Photon/Nominatim) -> GCJ-02 (高德瓦片火星坐标系，彻底消除500米偏移)
+      wgs84ToGcj02: function(wgsLat, wgsLon) {
+        if (this.outOfChina(wgsLat, wgsLon)) return [wgsLat, wgsLon];
+        var dLat = this.transformLat(wgsLon - 105.0, wgsLat - 35.0);
+        var dLon = this.transformLon(wgsLon - 105.0, wgsLat - 35.0);
+        var radLat = wgsLat / 180.0 * this.PI;
+        var magic = Math.sin(radLat);
+        magic = 1 - this.EE * magic * magic;
+        var sqrtMagic = Math.sqrt(magic);
+        dLat = (dLat * 180.0) / ((this.A * (1 - this.EE)) / (magic * sqrtMagic) * this.PI);
+        dLon = (dLon * 180.0) / (this.A / sqrtMagic * Math.cos(radLat) * this.PI);
+        return [parseFloat((wgsLat + dLat).toFixed(6)), parseFloat((wgsLon + dLon).toFixed(6))];
+      },
+
+      // GCJ-02 -> WGS-84
+      gcj02ToWgs84: function(gcjLat, gcjLon) {
+        if (this.outOfChina(gcjLat, gcjLon)) return [gcjLat, gcjLon];
+        var p = this.wgs84ToGcj02(gcjLat, gcjLon);
+        var dLat = p[0] - gcjLat;
+        var dLon = p[1] - gcjLon;
+        return [parseFloat((gcjLat - dLat).toFixed(6)), parseFloat((gcjLon - dLon).toFixed(6))];
+      },
+
+      // 百度 BD-09 -> GCJ-02
+      bd09ToGcj02: function(bdLat, bdLon) {
+        var x = bdLon - 0.0065;
+        var y = bdLat - 0.006;
+        var z = Math.sqrt(x * x + y * y) - 0.00002 * Math.sin(y * this.X_PI);
+        var theta = Math.atan2(y, x) - 0.000003 * Math.cos(x * this.X_PI);
+        var gcjLon = z * Math.cos(theta);
+        var gcjLat = z * Math.sin(theta);
+        return [parseFloat(gcjLat.toFixed(6)), parseFloat(gcjLon.toFixed(6))];
+      },
+
+      distanceMeters: function(lat1, lon1, lat2, lon2) {
+        var R = 6371000;
+        var dLat = (lat2 - lat1) * Math.PI / 180;
+        var dLon = (lon2 - lon1) * Math.PI / 180;
+        var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return Math.round(R * c);
+      },
+
+      formatDist: function(meters) {
+        if (!meters && meters !== 0) return '';
+        if (meters < 1000) return meters + 'm';
+        return (meters / 1000).toFixed(1) + 'km';
+      }
     };
+
+    // ================= 全国核心高精度离线地标库 (GCJ-02 原生火星坐标) =================
+    var PRESET_DATABASE = [
+      // 直辖市与省会中心
+      { name: '北京', city: '北京市', addr: '东城区王府井/天安门区域', lat: 39.904200, lon: 116.407400 },
+      { name: '上海', city: '上海市', addr: '黄浦区人民广场', lat: 31.230416, lon: 121.473701 },
+      { name: '广州', city: '广州市', addr: '越秀区人民公园', lat: 23.129112, lon: 113.264385 },
+      { name: '深圳', city: '深圳市', addr: '福田区市民中心', lat: 22.543099, lon: 114.057868 },
+      { name: '天津', city: '天津市', addr: '和平区海河之星', lat: 39.125596, lon: 117.190182 },
+      { name: '重庆', city: '重庆市', addr: '渝中区解放碑', lat: 29.563010, lon: 106.551556 },
+      { name: '杭州', city: '杭州市', addr: '拱墅区武林广场', lat: 30.274084, lon: 120.155070 },
+      { name: '南京', city: '南京市', addr: '玄武区新街口', lat: 32.060255, lon: 118.796877 },
+      { name: '成都', city: '成都市', addr: '锦江区天府广场', lat: 30.572815, lon: 104.066801 },
+      { name: '武汉', city: '武汉市', addr: '江汉区汉口核心区', lat: 30.592849, lon: 114.305539 },
+      { name: '西安', city: '西安市', addr: '碑林区钟鼓楼', lat: 34.341568, lon: 108.939770 },
+      { name: '长沙', city: '长沙市', addr: '天心区五一广场', lat: 28.228209, lon: 112.938814 },
+      { name: '郑州', city: '郑州市', addr: '二七区二七广场', lat: 34.746600, lon: 113.625368 },
+      { name: '合肥', city: '合肥市', addr: '庐阳区淮河路', lat: 31.820587, lon: 117.227239 },
+      { name: '济南', city: '济南市', addr: '历下区泉城广场', lat: 36.651216, lon: 117.120095 },
+      { name: '青岛', city: '青岛市', addr: '市南区五四广场', lat: 36.067108, lon: 120.382612 },
+      { name: '福州', city: '福州市', addr: '鼓楼区三坊七巷', lat: 26.074508, lon: 119.296494 },
+      { name: '厦门', city: '厦门市', addr: '思明区白鹭洲', lat: 24.479834, lon: 118.089425 },
+      { name: '昆明', city: '昆明市', addr: '五华区翠湖公园', lat: 25.040609, lon: 102.712251 },
+      { name: '贵阳', city: '贵阳市', addr: '南明区甲秀楼', lat: 26.647661, lon: 106.630154 },
+      { name: '南宁', city: '南宁市', addr: '青秀区金湖广场', lat: 22.817002, lon: 108.366543 },
+      { name: '海口', city: '海口市', addr: '美兰区日月广场', lat: 20.044002, lon: 110.349199 },
+      { name: '三亚', city: '三亚市', addr: '吉阳区大东海', lat: 18.252847, lon: 109.511909 },
+      { name: '沈阳', city: '沈阳市', addr: '沈河区中街', lat: 41.805698, lon: 123.431475 },
+      { name: '大连', city: '大连市', addr: '中山区星海广场', lat: 38.914003, lon: 121.614682 },
+      { name: '长春', city: '长春市', addr: '朝阳区人民广场', lat: 43.817071, lon: 125.323544 },
+      { name: '哈尔滨', city: '哈尔滨市', addr: '道里区中央大街', lat: 45.803775, lon: 126.534967 },
+      { name: '太原', city: '太原市', addr: '迎泽区迎泽公园', lat: 37.870590, lon: 112.548879 },
+      { name: '石家庄', city: '石家庄市', addr: '长安区中山路', lat: 38.042807, lon: 114.514860 },
+      { name: '呼和浩特', city: '呼和浩特市', addr: '新城区新华广场', lat: 40.842578, lon: 111.751990 },
+      { name: '乌鲁木齐', city: '乌鲁木齐市', addr: '天山区人民广场', lat: 43.825592, lon: 87.616848 },
+      { name: '兰州', city: '兰州市', addr: '城关区东方红广场', lat: 36.061089, lon: 103.834303 },
+      { name: '西宁', city: '西宁市', addr: '城中区中心广场', lat: 36.623178, lon: 101.778916 },
+      { name: '银川', city: '银川市', addr: '兴庆区南门广场', lat: 38.487193, lon: 106.230908 },
+      { name: '拉萨', city: '拉萨市', addr: '城关区布达拉宫广场', lat: 29.652491, lon: 91.172118 },
+      { name: '香港', city: '香港特别行政区', addr: '中环维多利亚港', lat: 22.282195, lon: 114.158140 },
+      { name: '澳门', city: '澳门特别行政区', addr: '大三巴牌坊', lat: 22.197660, lon: 113.541430 },
+      { name: '台北', city: '台北市', addr: '信义区台北101', lat: 25.033964, lon: 121.564468 },
+
+      // 全国主要高铁枢纽站 (绝不再被'北京/广州/上海'等城市截胡)
+      { name: '北京南站', city: '北京市', addr: '丰台区北京南站高铁路网枢纽', lat: 39.865170, lon: 116.378540 },
+      { name: '北京西站', city: '北京市', addr: '丰台区莲花池东路北京西站', lat: 39.894910, lon: 116.322056 },
+      { name: '北京站', city: '北京市', addr: '东城区毛家湾胡同甲13号', lat: 39.902970, lon: 116.427380 },
+      { name: '北京朝阳站', city: '北京市', addr: '朝阳区姚家园北路', lat: 39.954800, lon: 116.516500 },
+      { name: '北京丰台站', city: '北京市', addr: '丰台区万寿路南延', lat: 39.851900, lon: 116.315200 },
+      { name: '上海虹桥站', city: '上海市', addr: '闵行区申贵路1500号', lat: 31.194200, lon: 121.319800 },
+      { name: '上海站', city: '上海市', addr: '静安区秣陵路303号', lat: 31.249200, lon: 121.455700 },
+      { name: '上海南站', city: '上海市', addr: '徐汇区沪闵路9001号', lat: 31.153900, lon: 121.429800 },
+      { name: '广州南站', city: '广州市', addr: '番禺区石壁街道高铁枢纽', lat: 22.988600, lon: 113.268900 },
+      { name: '广州站', city: '广州市', addr: '越秀区环市西路159号', lat: 23.149200, lon: 113.257500 },
+      { name: '广州东站', city: '广州市', addr: '天河区东站路1号', lat: 23.150800, lon: 113.324800 },
+      { name: '广州白云站', city: '广州市', addr: '白云区棠新路', lat: 23.188900, lon: 113.255800 },
+      { name: '深圳北站', city: '深圳市', addr: '龙华区民治街道致远中路28号', lat: 22.609400, lon: 114.029200 },
+      { name: '深圳站', city: '深圳市', addr: '罗湖区建设路1008号(罗湖口岸)', lat: 22.532300, lon: 114.116600 },
+      { name: '福田站', city: '深圳市', addr: '福田区益田路深南大道地底枢纽', lat: 22.539800, lon: 114.055200 },
+      { name: '杭州东站', city: '杭州市', addr: '上城区天城路1号', lat: 30.290500, lon: 120.213200 },
+      { name: '杭州西站', city: '杭州市', addr: '余杭区仓前街道', lat: 30.276200, lon: 119.989200 },
+      { name: '杭州站', city: '杭州市', addr: '上城区环城东路1号(城站)', lat: 30.244900, lon: 120.180200 },
+      { name: '南京南站', city: '南京市', addr: '雨花台区江南路', lat: 31.968600, lon: 118.796800 },
+      { name: '南京站', city: '南京市', addr: '玄武区龙蟠路111号', lat: 32.086200, lon: 118.797800 },
+      { name: '成都东站', city: '成都市', addr: '成华区邛崃山路333号', lat: 30.628900, lon: 104.141200 },
+      { name: '成都南站', city: '成都市', addr: '武侯区天府大道北段', lat: 30.605200, lon: 104.068200 },
+      { name: '武汉站', city: '武汉市', addr: '洪山区杨春湖畔', lat: 30.607400, lon: 114.423900 },
+      { name: '汉口站', city: '武汉市', addr: '江汉区发展大道185号', lat: 30.619200, lon: 114.256800 },
+      { name: '武昌站', city: '武汉市', addr: '武昌区中山路642号', lat: 30.528400, lon: 114.316800 },
+      { name: '西安北站', city: '西安市', addr: '未央区元朔路', lat: 34.376800, lon: 108.938800 },
+      { name: '西安站', city: '西安市', addr: '新城区环城北路44号', lat: 34.277800, lon: 108.961200 },
+      { name: '郑州东站', city: '郑州市', addr: '金水区心怡路199号', lat: 34.758800, lon: 113.778800 },
+      { name: '长沙南站', city: '长沙市', addr: '雨花区花侯路', lat: 28.147200, lon: 113.064200 },
+      { name: '重庆北站', city: '重庆市', addr: '渝北区昆仑大道51号', lat: 29.606200, lon: 106.551800 },
+      { name: '重庆西站', city: '重庆市', addr: '沙坪坝区凤中路168号', lat: 29.516800, lon: 106.431200 },
+
+      // 主要国际与干线民用机场
+      { name: '北京大兴国际机场', city: '北京市', addr: '大兴区礼贤镇航站楼', lat: 39.509800, lon: 116.410500 },
+      { name: '首都国际机场', city: '北京市', addr: '顺义区机场南路', lat: 40.079900, lon: 116.603100 },
+      { name: '上海浦东国际机场', city: '上海市', addr: '浦东新区迎宾大道6000号', lat: 31.144300, lon: 121.808300 },
+      { name: '上海虹桥国际机场', city: '上海市', addr: '长宁区空港一路300号', lat: 31.197900, lon: 121.336300 },
+      { name: '广州白云国际机场', city: '广州市', addr: '白云区机场大道', lat: 23.392400, lon: 113.308800 },
+      { name: '深圳宝安国际机场', city: '深圳市', addr: '宝安区领航一路T3航站楼', lat: 22.639300, lon: 113.810700 },
+      { name: '成都天府国际机场', city: '成都市', addr: '简阳市芦葭镇', lat: 30.320800, lon: 104.444200 },
+      { name: '成都双流国际机场', city: '成都市', addr: '双流区机场路', lat: 30.578500, lon: 103.947100 },
+      { name: '杭州萧山国际机场', city: '杭州市', addr: '萧山区空港大道', lat: 30.229500, lon: 120.434400 },
+      { name: '南京禄口国际机场', city: '南京市', addr: '江宁区禄口街道', lat: 31.742100, lon: 118.862100 },
+      { name: '武汉天河国际机场', city: '武汉市', addr: '黄陂区天河街', lat: 30.776800, lon: 114.216200 },
+      { name: '西安咸阳国际机场', city: '西安市', addr: '渭城区底张街道', lat: 34.447100, lon: 108.751600 },
+      { name: '重庆江北国际机场', city: '重庆市', addr: '渝北区机场路', lat: 29.719200, lon: 106.641600 },
+
+      // 全国著名名胜/地标/商业中心
+      { name: '天安门', city: '北京市', addr: '东城区东长安街天安门广场', lat: 39.908823, lon: 116.397470 },
+      { name: '故宫博物院', city: '北京市', addr: '东城区景山前街4号', lat: 39.916345, lon: 116.397155 },
+      { name: '王府井', city: '北京市', addr: '东城区王府井商业步行街', lat: 39.908387, lon: 116.411620 },
+      { name: '奥森公园', city: '北京市', addr: '朝阳区奥林匹克森林公园南门', lat: 40.015200, lon: 116.388800 },
+      { name: '颐和园', city: '北京市', addr: '海淀区新建宫门路19号', lat: 39.999800, lon: 116.275500 },
+      { name: '三里屯', city: '北京市', addr: '朝阳区三里屯太古里', lat: 39.934800, lon: 116.455200 },
+      { name: '中关村', city: '北京市', addr: '海淀区中关村南大街', lat: 39.983500, lon: 116.315800 },
+      { name: '外滩', city: '上海市', addr: '黄浦区中山东一路黄浦江畔', lat: 31.239700, lon: 121.499800 },
+      { name: '东方明珠', city: '上海市', addr: '浦东新区世纪大道1号', lat: 31.239800, lon: 121.499700 },
+      { name: '陆家嘴', city: '上海市', addr: '浦东新区陆家嘴金融贸易区', lat: 31.238400, lon: 121.501500 },
+      { name: '迪士尼乐园', city: '上海市', addr: '浦东新区川沙新镇申迪北路', lat: 31.141500, lon: 121.657500 },
+      { name: '广州塔', city: '广州市', addr: '海珠区阅江西路222号小蛮腰', lat: 23.106500, lon: 113.324500 },
+      { name: '珠江新城', city: '广州市', addr: '天河区花城广场中轴线', lat: 23.120200, lon: 113.321800 },
+      { name: '北京路步行街', city: '广州市', addr: '越秀区北京路商业区', lat: 23.125200, lon: 113.269800 },
+      { name: '深圳湾公园', city: '深圳市', addr: '南山区滨海大道深圳湾滨海长廊', lat: 22.496000, lon: 113.948000 },
+      { name: '华强北', city: '深圳市', addr: '福田区华强北电子步行街', lat: 22.545800, lon: 114.086200 },
+      { name: '西湖', city: '杭州市', addr: '西湖区西湖风景名胜区', lat: 30.243500, lon: 120.134500 },
+      { name: '断桥残雪', city: '杭州市', addr: '西湖区白堤东端断桥', lat: 30.259200, lon: 120.149500 },
+      { name: '春熙路', city: '成都市', addr: '锦江区春熙路太古里IFS商圈', lat: 30.654800, lon: 104.080500 },
+      { name: '宽窄巷子', city: '成都市', addr: '青羊区金河路长顺上街', lat: 30.663200, lon: 104.053200 },
+      { name: '洪崖洞', city: '重庆市', addr: '渝中区嘉陵江滨江路88号', lat: 29.563800, lon: 106.582800 },
+      { name: '大雁塔', city: '西安市', addr: '雁塔区大雁塔南广场大唐不夜城', lat: 34.218500, lon: 108.964200 },
+      { name: '黄鹤楼', city: '武汉市', addr: '武昌区蛇山黄鹤楼公园', lat: 30.544800, lon: 114.304500 },
+      { name: '橘子洲', city: '长沙市', addr: '岳麓区橘子洲头青年毛泽东雕像', lat: 28.169500, lon: 112.961200 },
+      { name: '鼓浪屿', city: '厦门市', addr: '思明区鼓浪屿风景区日光岩', lat: 24.444800, lon: 118.066500 },
+
+      // 知名高等学府
+      { name: '清华大学', city: '北京市', addr: '海淀区双清路30号', lat: 40.003500, lon: 116.326800 },
+      { name: '北京大学', city: '北京市', addr: '海淀区颐和园路5号', lat: 39.991800, lon: 116.310500 },
+      { name: '浙江大学', city: '杭州市', addr: '西湖区余杭塘路866号紫金港校区', lat: 30.306800, lon: 120.086200 },
+      { name: '复旦大学', city: '上海市', addr: '杨浦区邯郸路220号', lat: 31.298200, lon: 121.503500 },
+      { name: '上海交通大学', city: '上海市', addr: '闵行区东川路800号', lat: 31.025800, lon: 121.438500 },
+      { name: '南京大学', city: '南京市', addr: '栖霞区仙林大道163号', lat: 32.122800, lon: 118.956800 },
+      { name: '中国科学技术大学', city: '合肥市', addr: '包河区金寨路96号', lat: 31.838500, lon: 117.268500 },
+      { name: '武汉大学', city: '武汉市', addr: '武昌区珞珈山八一路299号', lat: 30.539800, lon: 114.364800 },
+      { name: '华中科技大学', city: '武汉市', addr: '洪山区珞喻路1037号', lat: 30.514800, lon: 114.415800 },
+      { name: '中山大学', city: '广州市', addr: '海珠区新港西路135号南校园', lat: 23.098200, lon: 113.298500 },
+      { name: '深圳大学', city: '深圳市', addr: '南山区南海大道3688号粤海校区', lat: 22.533800, lon: 113.936500 },
+      { name: '四川大学', city: '成都市', addr: '武侯区一环路南一段24号望江校区', lat: 30.632800, lon: 104.084200 },
+      { name: '西安交通大学', city: '西安市', addr: '碑林区咸宁西路28号兴庆校区', lat: 34.249200, lon: 108.988200 },
+      { name: '哈尔滨工业大学', city: '哈尔滨市', addr: '南岗区西大直街92号', lat: 45.744800, lon: 126.632500 },
+      { name: '厦门大学', city: '厦门市', addr: '思明区思明南路422号', lat: 24.441800, lon: 118.098500 }
+    ];
+
+    // ================= 智能匹配与排名算法 (杜绝'北京西站'被'北京'盲目截胡) =================
+    function searchPresets(query, centerLat, centerLon) {
+      if (!query) return [];
+      var q = query.replace(/[\s,，]+/g, '').toLowerCase();
+      var qNorm = q.replace(/(市|省|区|县|站|大学|国际机场|机场|风景名胜区|风景区|公园)$/g, '');
+      var results = [];
+
+      for (var i = 0; i < PRESET_DATABASE.length; i++) {
+        var item = PRESET_DATABASE[i];
+        var nameLower = item.name.toLowerCase();
+        var cityLower = (item.city || '').toLowerCase();
+        var full = cityLower + nameLower;
+
+        var score = 0;
+        // 1. 完全精确匹配
+        if (nameLower === q || item.name === query) {
+          score = 100;
+        } else if (qNorm.length >= 2 && nameLower === qNorm) {
+          score = 95;
+        } else if (nameLower.startsWith(q) || full.startsWith(q)) {
+          // 2. 前缀精确匹配 (如 '北京西' 匹配 '北京西站')
+          score = 80;
+        } else if (qNorm.length >= 2 && (nameLower.startsWith(qNorm) || full.startsWith(qNorm))) {
+          score = 70;
+        } else if (q.length >= 2 && (nameLower.indexOf(q) !== -1 || full.indexOf(q) !== -1)) {
+          // 3. 子串匹配 (要求至少2个字符，杜绝单字'西'误撞'西湖')
+          score = 50;
+        } else if (qNorm.length >= 2 && (nameLower.indexOf(qNorm) !== -1 || full.indexOf(qNorm) !== -1)) {
+          score = 40;
+        }
+
+        if (score > 0) {
+          var dist = (centerLat && centerLon) ? CoordTransform.distanceMeters(centerLat, centerLon, item.lat, item.lon) : 0;
+          results.push({
+            name: item.name,
+            address: (item.city ? item.city + ' · ' : '') + item.addr,
+            lat: item.lat,
+            lon: item.lon,
+            badge: '精选',
+            badgeClass: 'badge-preset',
+            distance: dist,
+            score: score
+          });
+        }
+      }
+
+      // 按匹配度权重降序，同权重按离当前视口中心距离升序
+      results.sort(function(a, b) {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.distance - b.distance;
+      });
+
+      return results.slice(0, 8);
+    }
+
+    // ================= 智能坐标解析 (智能判断经纬度先后顺序与坐标系) =================
+    function parseCoordinate(query) {
+      var parts = query.replace(/[;；|]/g, ',').split(/[,，\s]+/);
+      if (parts.length < 2) return null;
+      var num1 = parseFloat(parts[0]);
+      var num2 = parseFloat(parts[1]);
+      if (isNaN(num1) || isNaN(num2)) return null;
+
+      var lat, lon;
+      // 中国境内经度约 72~138，纬度约 3~55。智能纠正经纬度颠倒
+      if (num1 >= 72.0 && num1 <= 138.0 && num2 >= 3.0 && num2 <= 55.0) {
+        lon = num1;
+        lat = num2;
+      } else if (num1 >= 3.0 && num1 <= 55.0 && num2 >= 72.0 && num2 <= 138.0) {
+        lat = num1;
+        lon = num2;
+      } else if (Math.abs(num1) <= 90 && Math.abs(num2) <= 180) {
+        lat = num1;
+        lon = num2;
+      } else {
+        return null;
+      }
+
+      var isWgs = /wgs/i.test(query) || /gps/i.test(query);
+      var isBd = /bd/i.test(query) || /baidu/i.test(query);
+      var finalLat = lat;
+      var finalLon = lon;
+      var desc = '直接坐标定位';
+
+      if (isBd) {
+        var gcj = CoordTransform.bd09ToGcj02(lat, lon);
+        finalLat = gcj[0];
+        finalLon = gcj[1];
+        desc = '百度BD-09坐标已高精度纠偏至GCJ-02';
+      } else if (isWgs) {
+        var gcj2 = CoordTransform.wgs84ToGcj02(lat, lon);
+        finalLat = gcj2[0];
+        finalLon = gcj2[1];
+        desc = 'GPS/WGS-84标准坐标已消除偏移至GCJ-02';
+      }
+
+      return {
+        name: '坐标: ' + finalLat.toFixed(6) + ', ' + finalLon.toFixed(6),
+        address: desc,
+        lat: finalLat,
+        lon: finalLon,
+        badge: '坐标',
+        badgeClass: 'badge-coord',
+        distance: 0,
+        score: 100
+      };
+    }
 
     // Tile Layers
     var gaodeVector = L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
@@ -281,7 +884,11 @@
 
     var currentLayerIndex = 0;
     var layers = [gaodeVector, satelliteGroup, osmLayer];
-    var layerNames = ["高德地图", "高德卫星", "OSM"];
+    var layerNames = ['高德地图', '高德卫星', 'OSM'];
+
+    var searchDebounceTimer = null;
+    var searchController = null;
+    var searchPinMarker = null;
 
     function initMap() {
       map = L.map('map', {
@@ -293,7 +900,7 @@
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-      // 用户主动手势拖动时，自动解除视角强制锁定
+      // 用户主动拖动时解除跟随
       map.on('dragstart', function() {
         if (isFollowing) {
           isFollowing = false;
@@ -302,10 +909,11 @@
       });
 
       map.on('click', function(e) {
+        hideSearchResults();
         var lat = parseFloat(e.latlng.lat.toFixed(6));
         var lon = parseFloat(e.latlng.lng.toFixed(6));
 
-        if (currentMode === "route") {
+        if (currentMode === 'route') {
           if (roadSnapEnabled && waypoints.length > 0) {
             snapRouteToRoad(waypoints[waypoints.length - 1], { lat: lat, lon: lon });
           } else {
@@ -316,61 +924,409 @@
         }
       });
 
-      // 绑定回车搜索
-      document.getElementById('search-input').addEventListener('keydown', function(event) {
+      // 绑定输入框输入联想与按键事件
+      var inputEl = document.getElementById('search-input');
+      inputEl.addEventListener('input', function() {
+        var query = this.value.trim();
+        document.getElementById('search-clear-btn').style.display = query ? 'block' : 'none';
+
+        if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+        if (!query) {
+          hideSearchResults();
+          return;
+        }
+
+        // 防抖 350ms 触发联想搜索
+        searchDebounceTimer = setTimeout(function() {
+          executeSearch(false);
+        }, 350);
+      });
+
+      inputEl.addEventListener('keydown', function(event) {
         if (event.key === 'Enter') {
-          executeSearch();
+          if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+          executeSearch(true);
+        }
+      });
+
+      inputEl.addEventListener('focus', function() {
+        if (this.value.trim().length > 0) {
+          executeSearch(false);
         }
       });
     }
 
-    // 搜索执行
-    function executeSearch() {
+    // ================= 搜索引擎入口 (离线精选 + 高德API + Photon纠偏 + 降级) =================
+    function executeSearch(userTriggered) {
       var query = document.getElementById('search-input').value.trim();
-      if (!query) return;
+      var clearBtn = document.getElementById('search-clear-btn');
+      clearBtn.style.display = query ? 'block' : 'none';
 
-      // 1. 尝试快速匹配本地字典
-      for (var key in PRESET_GEO) {
-        if (query.indexOf(key) !== -1 || key.indexOf(query) !== -1) {
-          var target = PRESET_GEO[key];
-          map.flyTo(target, 15, { duration: 1.2 });
-          showToast("已定位至: " + key);
-          return;
-        }
+      if (!query) {
+        hideSearchResults();
+        return;
       }
 
-      // 2. 尝试解析经纬度格式 "lat, lon"
-      var parts = query.split(/[,，\s]+/);
-      if (parts.length >= 2) {
-        var pLat = parseFloat(parts[0]);
-        var pLon = parseFloat(parts[1]);
-        if (!isNaN(pLat) && !isNaN(pLon) && Math.abs(pLat) <= 90 && Math.abs(pLon) <= 180) {
-          map.flyTo([pLat, pLon], 15, { duration: 1.2 });
-          showToast("已定位至坐标: " + pLat + ", " + pLon);
-          return;
-        }
+      var center = map ? map.getCenter() : { lat: 39.9, lng: 116.4 };
+      var candidates = [];
+
+      // 1. 尝试坐标解析
+      var coordItem = parseCoordinate(query);
+      if (coordItem) {
+        coordItem.distance = CoordTransform.distanceMeters(center.lat, center.lng, coordItem.lat, coordItem.lon);
+        candidates.push(coordItem);
       }
 
-      // 3. 在线 Nominatim / OSM 搜索
-      showToast("正在检索: " + query + " ...");
-      var url = "https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(query);
-      fetch(url)
+      // 2. 检索高精度离线精选库
+      var presetMatches = searchPresets(query, center.lat, center.lng);
+      candidates = candidates.concat(presetMatches);
+
+      // 用户主动按回车/点击按钮：如果有高分完全匹配项或坐标，直接秒跳
+      if (userTriggered && candidates.length > 0 && (candidates[0].score >= 95 || coordItem)) {
+        selectSearchResult(candidates[0]);
+        return;
+      }
+
+      // 立即展现第一梯队结果 (秒开无需等待网络)
+      if (candidates.length > 0) {
+        renderSearchResults(candidates, query);
+      }
+
+      // 3. 在线接口检索
+      if (searchController) {
+        searchController.abort();
+      }
+      searchController = new AbortController();
+      var signal = searchController.signal;
+
+      var amapKey = localStorage.getItem('amap_web_key') || '';
+      if (amapKey) {
+        queryAmapApi(query, amapKey, signal, candidates);
+      } else {
+        queryPhotonApi(query, center.lat, center.lng, signal, candidates);
+      }
+    }
+
+    // Photon 在线搜索 (内置当前视口偏置与精准 WGS84 -> GCJ-02 火星纠偏)
+    function queryPhotonApi(query, centerLat, centerLon, signal, existingList) {
+      var url = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(query) +
+                '&lat=' + centerLat + '&lon=' + centerLon + '&limit=6';
+
+      fetch(url, { signal: signal })
         .then(function(res) { return res.json(); })
         .then(function(data) {
-          if (data && data.length > 0) {
-            var item = data[0];
-            var lat = parseFloat(item.lat);
-            var lon = parseFloat(item.lon);
-            map.flyTo([lat, lon], 15, { duration: 1.2 });
-            showToast("找到目标: " + (item.display_name.split(",")[0] || query));
-          } else {
-            showToast("未找到地点，请尝试输入城市或具体地标");
+          var onlineResults = [];
+          if (data && data.features) {
+            data.features.forEach(function(feat) {
+              var props = feat.properties || {};
+              var geom = feat.geometry || {};
+              var coords = geom.coordinates || [];
+              if (coords.length >= 2) {
+                var wgsLon = coords[0];
+                var wgsLat = coords[1];
+                // 关键技术纠偏：将国际WGS-84标准坐标转换为高德GCJ-02
+                var gcj = CoordTransform.wgs84ToGcj02(wgsLat, wgsLon);
+                var gcjLat = gcj[0];
+                var gcjLon = gcj[1];
+
+                var title = props.name || query;
+                var addrParts = [];
+                if (props.city) addrParts.push(props.city);
+                if (props.district) addrParts.push(props.district);
+                if (props.street) addrParts.push(props.street);
+                if (props.country && !props.city) addrParts.push(props.country);
+                var addr = addrParts.join(' · ') || props.osm_value || '地理数据';
+
+                var dist = CoordTransform.distanceMeters(centerLat, centerLon, gcjLat, gcjLon);
+                onlineResults.push({
+                  name: title,
+                  address: addr,
+                  lat: gcjLat,
+                  lon: gcjLon,
+                  badge: '在线',
+                  badgeClass: 'badge-online',
+                  distance: dist,
+                  score: 45
+                });
+              }
+            });
           }
+
+          var combined = mergeResults(existingList, onlineResults);
+          renderSearchResults(combined, query);
         })
         .catch(function(err) {
-          showToast("网络搜索暂不可用，请输入常用城市");
+          if (err.name === 'AbortError') return;
+          // 若 Photon 超时，降级使用 Nominatim 纠偏搜索
+          fallbackNominatim(query, centerLat, centerLon, signal, existingList);
         });
     }
+
+    // 降级使用 OpenStreetMap Nominatim (严格加入 GCJ-02 转换与超时保护)
+    function fallbackNominatim(query, centerLat, centerLon, signal, existingList) {
+      var timeoutId = setTimeout(function() {
+        if (searchController) searchController.abort();
+      }, 3500);
+
+      var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=5&q=' + encodeURIComponent(query);
+      fetch(url, { signal: signal })
+        .then(function(res) {
+          clearTimeout(timeoutId);
+          return res.json();
+        })
+        .then(function(data) {
+          var osmResults = [];
+          if (data && data.length > 0) {
+            data.forEach(function(item) {
+              var wgsLat = parseFloat(item.lat);
+              var wgsLon = parseFloat(item.lon);
+              var gcj = CoordTransform.wgs84ToGcj02(wgsLat, wgsLon);
+              var title = (item.display_name || '').split(',')[0] || query;
+              var dist = CoordTransform.distanceMeters(centerLat, centerLon, gcj[0], gcj[1]);
+
+              osmResults.push({
+                name: title,
+                address: item.display_name ? item.display_name.split(',').slice(1, 4).join(' ') : 'OSM数据',
+                lat: gcj[0],
+                lon: gcj[1],
+                badge: 'OSM',
+                badgeClass: 'badge-online',
+                distance: dist,
+                score: 35
+              });
+            });
+          }
+          var combined = mergeResults(existingList, osmResults);
+          renderSearchResults(combined, query);
+        })
+        .catch(function() {
+          clearTimeout(timeoutId);
+          if (existingList.length === 0) {
+            renderSearchResults([], query);
+          }
+        });
+    }
+
+    // 高德 Web 服务 API 官方直连 (若用户在配置弹窗中填入了 Key)
+    function queryAmapApi(query, key, signal, existingList) {
+      var center = map ? map.getCenter() : { lat: 39.9, lng: 116.4 };
+      var url = 'https://restapi.amap.com/v3/place/text?keywords=' + encodeURIComponent(query) +
+                '&key=' + encodeURIComponent(key) + '&offset=8&page=1';
+
+      fetch(url, { signal: signal })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          var amapResults = [];
+          if (data && data.status === '1' && data.pois) {
+            data.pois.forEach(function(poi) {
+              if (poi.location) {
+                var coords = poi.location.split(',');
+                var pLon = parseFloat(coords[0]);
+                var pLat = parseFloat(coords[1]);
+                var dist = CoordTransform.distanceMeters(center.lat, center.lng, pLat, pLon);
+                amapResults.push({
+                  name: poi.name,
+                  address: (poi.cityname || '') + ' ' + (poi.adname || '') + ' ' + (poi.address || ''),
+                  lat: pLat,
+                  lon: pLon,
+                  badge: '高德',
+                  badgeClass: 'badge-amap',
+                  distance: dist,
+                  score: 90
+                });
+              }
+            });
+          }
+          var combined = mergeResults(existingList, amapResults);
+          renderSearchResults(combined, query);
+        })
+        .catch(function(err) {
+          if (err.name === 'AbortError') return;
+          queryPhotonApi(query, center.lat, center.lng, signal, existingList);
+        });
+    }
+
+    // 智能去重与聚合
+    function mergeResults(primaryList, secondaryList) {
+      var seen = {};
+      var merged = [];
+
+      primaryList.forEach(function(item) {
+        var key = item.lat.toFixed(4) + '_' + item.lon.toFixed(4);
+        seen[key] = true;
+        merged.push(item);
+      });
+
+      secondaryList.forEach(function(item) {
+        var key = item.lat.toFixed(4) + '_' + item.lon.toFixed(4);
+        if (!seen[key]) {
+          seen[key] = true;
+          merged.push(item);
+        }
+      });
+
+      return merged;
+    }
+
+    // 渲染候选结果下拉列表卡片
+    function renderSearchResults(items, query) {
+      var panel = document.getElementById('search-results-panel');
+      var list = document.getElementById('search-results-list');
+      var title = document.getElementById('search-results-title');
+
+      if (!items || items.length === 0) {
+        title.innerText = '🔍 检索无匹配结果';
+        list.innerHTML = '<div class="search-empty">未找到关于 "' + escapeHtml(query) + '" 的地点<br><span style="color:#aaa;">请尝试输入完整地标、火车站全名或经纬度坐标</span></div>';
+        panel.style.display = 'flex';
+        return;
+      }
+
+      title.innerText = '🔍 搜索建议 (' + items.length + ' 个结果)';
+      var html = '';
+      items.forEach(function(item, idx) {
+        var distBadge = item.distance ? ('<span class="search-item-dist">' + CoordTransform.formatDist(item.distance) + '</span>') : '';
+        html += `
+          <div class="search-item" onclick="onSelectCandidate(${idx})">
+            <div class="search-item-top">
+              <div class="search-item-name">${escapeHtml(item.name)}</div>
+              <span class="search-item-badge ${item.badgeClass || 'badge-preset'}">${item.badge || '精选'}</span>
+            </div>
+            <div class="search-item-bottom">
+              <div class="search-item-addr">${escapeHtml(item.address || '')}</div>
+              ${distBadge}
+            </div>
+          </div>
+        `;
+      });
+
+      list.innerHTML = html;
+      panel.style.display = 'flex';
+      window._currentSearchResults = items;
+    }
+
+    function onSelectCandidate(index) {
+      if (window._currentSearchResults && window._currentSearchResults[index]) {
+        selectSearchResult(window._currentSearchResults[index]);
+      }
+    }
+
+    // 选中候选条目 -> 平滑飞行并在地图上落下高亮脉冲靶点
+    function selectSearchResult(item) {
+      hideSearchResults();
+      document.getElementById('search-input').value = item.name;
+      document.getElementById('search-clear-btn').style.display = 'block';
+
+      if (searchPinMarker) {
+        map.removeLayer(searchPinMarker);
+        searchPinMarker = null;
+      }
+
+      var icon = L.divIcon({
+        className: 'custom-div-icon',
+        html: `
+          <div class="search-target-pin">
+            <div class="search-target-pulse"></div>
+            <div class="search-target-center">🎯</div>
+          </div>
+        `,
+        iconSize: [34, 34],
+        iconAnchor: [17, 17],
+        popupAnchor: [0, -18]
+      });
+
+      searchPinMarker = L.marker([item.lat, item.lon], { icon: icon, zIndexOffset: 2500 }).addTo(map);
+
+      var distText = item.distance ? (' · <span style="color:#1976D2;">距此 ' + CoordTransform.formatDist(item.distance) + '</span>') : '';
+      var popupHtml = `
+        <div style="min-width: 170px; font-size: 13px; line-height: 1.4;">
+          <div style="font-weight: bold; color: #1a1a1a; margin-bottom: 2px;">${escapeHtml(item.name)}</div>
+          <div style="font-size: 11px; color: #666; margin-bottom: 5px;">${escapeHtml(item.address)}${distText}</div>
+          <div style="font-size: 10px; color: #888; margin-bottom: 7px; font-family: monospace;">${item.lat.toFixed(6)}, ${item.lon.toFixed(6)}</div>
+          <div class="search-action-btn-row">
+            <button class="search-act-btn search-act-single" onclick="setSingleFromSearch(${item.lat}, ${item.lon})">📍 设为单点</button>
+            <button class="search-act-btn search-act-route" onclick="addRouteFromSearch(${item.lat}, ${item.lon})">➕ 加为路点</button>
+            <button class="search-act-btn search-act-del" onclick="removeSearchPin()">✕ 移除</button>
+          </div>
+        </div>
+      `;
+      searchPinMarker.bindPopup(popupHtml).openPopup();
+      map.flyTo([item.lat, item.lon], 16, { duration: 1.0 });
+      showToast('已精确定位至: ' + item.name);
+    }
+
+    function setSingleFromSearch(lat, lon) {
+      setSinglePoint(lat, lon, true);
+      removeSearchPin();
+      showToast('已设为单点模拟目标: ' + lat.toFixed(6) + ', ' + lon.toFixed(6));
+    }
+
+    function addRouteFromSearch(lat, lon) {
+      if (currentMode !== 'route') {
+        window.setMode('route');
+      }
+      if (roadSnapEnabled && waypoints.length > 0) {
+        snapRouteToRoad(waypoints[waypoints.length - 1], { lat: lat, lon: lon });
+      } else {
+        addWaypoint(lat, lon, true);
+      }
+      removeSearchPin();
+      showToast('已添加为路线路点');
+    }
+
+    function removeSearchPin() {
+      if (searchPinMarker) {
+        map.removeLayer(searchPinMarker);
+        searchPinMarker = null;
+      }
+    }
+
+    function clearSearchInput() {
+      var input = document.getElementById('search-input');
+      input.value = '';
+      document.getElementById('search-clear-btn').style.display = 'none';
+      hideSearchResults();
+      removeSearchPin();
+      input.focus();
+    }
+
+    function hideSearchResults() {
+      var panel = document.getElementById('search-results-panel');
+      if (panel) panel.style.display = 'none';
+    }
+
+    function toggleApiKeyModal() {
+      var modal = document.getElementById('api-key-modal');
+      var input = document.getElementById('amap-key-input');
+      if (modal.style.display === 'none' || !modal.style.display) {
+        input.value = localStorage.getItem('amap_web_key') || '';
+        modal.style.display = 'flex';
+      } else {
+        modal.style.display = 'none';
+      }
+    }
+
+    function saveAmapKey() {
+      var input = document.getElementById('amap-key-input');
+      var key = input.value.trim();
+      if (key) {
+        localStorage.setItem('amap_web_key', key);
+        showToast('高德 Web Key 已保存，将优先调用官方海量 POI 检索');
+      } else {
+        localStorage.removeItem('amap_web_key');
+        showToast('已恢复为离线精选 + Photon 纠偏搜索模式');
+      }
+      toggleApiKeyModal();
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\"/g, '&quot;');
+    }
+
 
     // 切换道路沿路吸附（支持 步行 -> 骑行 -> 驾车 -> 关 循环切换）
     function toggleRoadSnap() {

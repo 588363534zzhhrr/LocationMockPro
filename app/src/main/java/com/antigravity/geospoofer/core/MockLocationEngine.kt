@@ -63,6 +63,8 @@ class MockLocationEngine(private val context: Context) {
         NONE("纯净定点 (无微抖动)", 0.0, 15, 3.0f)
     }
 
+    val registeredProviders: MutableSet<String> = Collections.synchronizedSet(mutableSetOf<String>())
+
     /**
      * 获取当前系统支持的全部定位提供者（包含 GPS、Network 及 Android 12+ 引入的 Fused 融合定位）
      */
@@ -81,13 +83,14 @@ class MockLocationEngine(private val context: Context) {
     fun start(): Boolean {
         if (isRunning) return true
 
+        registeredProviders.clear()
         var anySuccess = false
         for (provider in getActiveProviders()) {
             try {
                 registerProvider(provider)
                 anySuccess = true
             } catch (e: Exception) {
-                // 部分 ROM 可能限制向 fused 注册 test provider，捕获后不影响其他 provider
+                // 部分 ROM 可能限制向 network 或 fused 注册 test provider，捕获后不影响其他 provider
                 e.printStackTrace()
             }
         }
@@ -102,12 +105,14 @@ class MockLocationEngine(private val context: Context) {
     fun stop() {
         if (!isRunning) return
 
-        for (provider in getActiveProviders()) {
+        val targets = if (registeredProviders.isNotEmpty()) registeredProviders.toList() else getActiveProviders()
+        for (provider in targets) {
             try {
                 locationManager.setTestProviderEnabled(provider, false)
                 locationManager.removeTestProvider(provider)
             } catch (_: Exception) {}
         }
+        registeredProviders.clear()
         isRunning = false
         LocationStateProvider.updateLocation(
             lat = currentLatitude,
@@ -135,14 +140,35 @@ class MockLocationEngine(private val context: Context) {
             locationManager.addTestProvider(provider, properties)
         } else {
             @Suppress("DEPRECATION")
+            val requiresNetwork = provider == LocationManager.NETWORK_PROVIDER
+            val requiresSatellite = provider == LocationManager.GPS_PROVIDER
+            val requiresCell = provider == LocationManager.NETWORK_PROVIDER
             locationManager.addTestProvider(
                 provider,
-                false, false, false, false,
-                true, true, true,
-                1, 1
+                requiresNetwork,
+                requiresSatellite,
+                requiresCell,
+                false,
+                true,
+                true,
+                true,
+                1, // POWER_LOW
+                1  // ACCURACY_FINE
             )
         }
         locationManager.setTestProviderEnabled(provider, true)
+
+        @Suppress("DEPRECATION")
+        try {
+            locationManager.setTestProviderStatus(
+                provider,
+                android.location.LocationProvider.AVAILABLE,
+                null,
+                System.currentTimeMillis()
+            )
+        } catch (_: Exception) {}
+
+        registeredProviders.add(provider)
     }
 
     /**
@@ -204,7 +230,8 @@ class MockLocationEngine(private val context: Context) {
         // 3.5f ~ 8.0f 米拟真动态微幅波动（切勿恒定为整数）
         val dynamicAccuracy = (profile.baseAccuracyMeters + (random.nextFloat() * 2.2f) + (Math.sin(nowMillis / 1200.0).toFloat() * 1.2f)).coerceIn(3.5f, 8.0f)
 
-        for (provider in getActiveProviders()) {
+        val targets = if (registeredProviders.isNotEmpty()) registeredProviders.toList() else getActiveProviders()
+        for (provider in targets) {
             val loc = Location(provider).apply {
                 latitude = injectedLat
                 longitude = injectedLon

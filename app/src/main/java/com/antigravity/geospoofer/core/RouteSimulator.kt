@@ -128,7 +128,7 @@ class RouteSimulator(
         this.targetDistanceMeters = targetMeters
 
         simulationJob = scope.launch(Dispatchers.Default) {
-            val tickIntervalMs = 500L // 每 500ms 刷新一次位置
+            val tickIntervalMs = 350L // 350ms 拟真高频平滑注入（强力对抗高德/微信等网络定位拉扯）
             val tickIntervalSec = tickIntervalMs / 1000.0
             val strideLengthMeters = 0.72 // 人类平均单步步长约 0.72 米
             val startTimeMs = System.currentTimeMillis()
@@ -192,33 +192,35 @@ class RouteSimulator(
                     var traveledInSegment = 0.0
 
                     while (traveledInSegment < segDist && isActive) {
-                        // 1. 若处于暂停状态，保持原地心跳
+                        // 1. 若处于暂停状态，保持原地高频防跳心跳
                         if (isPaused) {
                             val currentPoint = CoordinateUtils.movePoint(
                                 p1.latitude, p1.longitude,
                                 traveledInSegment.coerceAtMost(segDist), bearing
                             )
                             engine.updateLocation(currentPoint.latitude, currentPoint.longitude, speed = 0f, bearing = bearing)
-                            delay(tickIntervalMs)
+                            delay(250L) // 维持 250ms 高频脉冲，避免高德跳回真实位置
                             continue
                         }
 
-                        // 2. 拟真红绿灯/随机驻留机制
+                        // 2. 拟真红绿灯/随机驻留机制（维持 250ms 高频防跳心跳）
                         if (enableRandomStops && distanceSinceLastStop >= nextStopDistance) {
                             val stopDuration = 8 + (Math.random() * 10).toInt()
                             val reason = stopReasons.random()
-                            for (sec in stopDuration downTo 1) {
+                            val totalTicks = stopDuration * 4
+                            for (tick in totalTicks downTo 1) {
                                 if (!isActive || isPaused) break
                                 val curPt = CoordinateUtils.movePoint(p1.latitude, p1.longitude, traveledInSegment.coerceAtMost(segDist), bearing)
                                 engine.updateLocation(curPt.latitude, curPt.longitude, speed = 0f, bearing = bearing)
+                                val remainingSec = (tick + 3) / 4
                                 _simulationState.value = _simulationState.value.copy(
                                     isTemporarilyStopped = true,
-                                    stopCountdownSeconds = sec,
+                                    stopCountdownSeconds = remainingSec,
                                     stopReason = reason,
                                     currentSpeedMps = 0f,
                                     cadenceSpm = 0
                                 )
-                                delay(1000L)
+                                delay(250L) // 高频 250ms 注入，杜绝驻留期间高德网络定位反扑跳点
                             }
                             distanceSinceLastStop = 0.0
                             nextStopDistance = 650.0 + (Math.random() * 600.0)

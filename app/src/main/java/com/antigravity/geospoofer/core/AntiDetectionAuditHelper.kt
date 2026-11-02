@@ -175,6 +175,15 @@ object AntiDetectionAuditHelper {
                     suggestion = "完全免 Root 运行，无 SU 风险检测暴露，安全合规。"
                 )
             )
+            items.add(
+                AuditItem(
+                    title = "高德/微信非Root多源定位防跳排查",
+                    statusText = "Wi-Fi探针/基站网络定位反差风险",
+                    isPassed = false,
+                    riskLevel = RiskLevel.WARNING,
+                    suggestion = "高德地图会扫描周围真实 Wi-Fi 热点 MAC 反查真实位置导致来回跳动！防跳必做：① 进入系统【设置->位置信息】关闭【Wi-Fi扫描】与【蓝牙扫描】；② 断开 Wi-Fi 改用移动数据流量；③ 开启 250ms 高频防跳脉冲压制。"
+                )
+            )
         }
 
         // 4. 自然 GPS 物理微抖动与卫星噪点状态

@@ -32,6 +32,15 @@ class MockLocationService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var heartbeatJob: Job? = null
 
+    // 非 Root 高频防跳脉冲压制模式（开启后静止心跳提速至 250ms，以 4Hz 高频虚拟信号强行压制系统网络定位拉扯）
+    var isAntiJumpHighFreqEnabled: Boolean = true
+        set(value) {
+            field = value
+            if (::engine.isInitialized && engine.isRunning && !routeSimulator.isSimulating) {
+                startHeartbeat()
+            }
+        }
+
     inner class LocalBinder : Binder() {
         fun getService(): MockLocationService = this@MockLocationService
     }
@@ -211,7 +220,7 @@ class MockLocationService : Service() {
     }
 
     /**
-     * 心跳定时器：静止状态下每 1 秒推送一次坐标，确保系统定位缓存不会过期恢复真实位置
+     * 心跳定时器：静止状态下高频推送坐标（默认 250ms 高频防跳模式），确保系统定位缓存不会过期恢复真实位置
      */
     private fun startHeartbeat() {
         heartbeatJob?.cancel()
@@ -225,7 +234,8 @@ class MockLocationService : Service() {
                         bearing = engine.currentBearing
                     )
                 }
-                delay(1000)
+                val interval = if (isAntiJumpHighFreqEnabled) 250L else 1000L
+                delay(interval)
             }
         }
     }

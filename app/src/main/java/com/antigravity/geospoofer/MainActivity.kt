@@ -208,6 +208,9 @@ class MainActivity : ComponentActivity() {
                         onSetTerrainElevation = { enabled ->
                             mockService?.routeSimulator?.enableTerrainElevation = enabled
                         },
+                        onSetAntiJumpHighFreq = { enabled ->
+                            mockService?.isAntiJumpHighFreqEnabled = enabled
+                        },
                         engine = mockService?.engine
                     )
                 }
@@ -324,6 +327,7 @@ fun MainScreen(
     onSetRandomStops: (Boolean) -> Unit,
     onSetFatigueCurve: (Boolean) -> Unit,
     onSetTerrainElevation: (Boolean) -> Unit = {},
+    onSetAntiJumpHighFreq: (Boolean) -> Unit = {},
     engine: MockLocationEngine? = null
 ) {
     val context = LocalContext.current
@@ -357,8 +361,10 @@ fun MainScreen(
     var coordSystemSingle by remember { mutableStateOf("GCJ02") }
     var joystickEnabled by remember { mutableStateOf(false) }
 
-    // 防检测体检、NMEA 终端与地形海拔起伏
+    // 防检测体检、NMEA 终端、地形海拔起伏与非Root高德防跳指南
     var enableTerrainElevation by remember { mutableStateOf(true) }
+    var isAntiJumpHighFreq by remember { mutableStateOf(true) }
+    var showAntiJumpGuideDialog by remember { mutableStateOf(false) }
     var showAuditDialog by remember { mutableStateOf(false) }
     var showRadioSpoofDialog by remember { mutableStateOf(false) }
     var showNmeaTerminal by remember { mutableStateOf(false) }
@@ -780,6 +786,68 @@ fun MainScreen(
                             onSetTerrainElevation(it)
                         }
                     )
+                }
+
+                HorizontalDivider(color = Color(0xFF333333))
+
+                // 非 Root 高德防跳专区
+                Surface(
+                    color = Color(0xFF221A12),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, Color(0xFFD87A24).copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("⚡ 4Hz 高频防跳脉冲压制", fontWeight = FontWeight.Bold, color = Color(0xFFFFB74D), fontSize = 13.sp)
+                                Text("静止心跳提速至 250ms，以密集虚拟信号压制高德网络定位", color = Color.LightGray, fontSize = 10.sp)
+                            }
+                            Switch(
+                                checked = isAntiJumpHighFreq,
+                                onCheckedChange = {
+                                    isAntiJumpHighFreq = it
+                                    onSetAntiJumpHighFreq(it)
+                                    Toast.makeText(context, if (it) "已开启 250ms 高频防跳脉冲" else "已恢复 1000ms 标准脉冲", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilledTonalButton(
+                                onClick = { showAntiJumpGuideDialog = true },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF3E2723))
+                            ) {
+                                Text("📖 高德防跳排查指南", fontSize = 11.sp, color = Color(0xFFFFCC80), fontWeight = FontWeight.Bold)
+                            }
+
+                            FilledTonalButton(
+                                onClick = {
+                                    try {
+                                        val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                                        context.startActivity(intent)
+                                    } catch (_: Exception) {
+                                        Toast.makeText(context, "请手动前往手机【设置->位置信息】", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF4E342E))
+                            ) {
+                                Text("⚙️ 一键直达定位设置", fontSize = 11.sp, color = Color(0xFFFFAB91), fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                 }
 
                 HorizontalDivider(color = Color(0xFF333333))
@@ -2375,6 +2443,127 @@ fun MainScreen(
             dismissButton = {
                 TextButton(onClick = { showRadioSpoofDialog = false }) {
                     Text("取消")
+                }
+            }
+        )
+    }
+
+    // 📖 高德/微信非Root防跳排查指南弹窗
+    if (showAntiJumpGuideDialog) {
+        AlertDialog(
+            onDismissRequest = { showAntiJumpGuideDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("💡 高德地图防跳排查指南", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 480.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Surface(
+                        color = Color(0xFF332015),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("❓ 为什么位置会一会虚拟、一会真实？", fontWeight = FontWeight.Bold, color = Color(0xFFFFB74D), fontSize = 12.sp)
+                            Text(
+                                "高德地图内部集成了网络多源融合定位。在非Root手机上，系统只允许模拟GPS，而高德会在后台扫描周围真实的 Wi-Fi 路由器 MAC 地址与基站。当高德收到 Wi-Fi 云端定位时，就会把蓝点强行拉回真实位置；收到模拟 GPS 时又跳回虚拟位置，导致两点来回跳动！",
+                                fontSize = 11.sp,
+                                color = Color.White,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+
+                    Text("🛠️ 非Root手机必做排查步骤：", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
+
+                    Surface(
+                        color = Color(0xFF262626),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("1️⃣ 彻底关闭系统【Wi-Fi扫描】与【蓝牙扫描】", fontWeight = FontWeight.Bold, color = Color(0xFF81C784), fontSize = 12.sp)
+                            Text(
+                                "【90%的跳点由此引起】哪怕关掉 Wi-Fi 开关，系统也默认在后台偷偷扫描附近路由！请点击下方按钮直达定位设置，在【提高精确度/扫描】中彻底关闭 Wi-Fi 扫描和蓝牙扫描。",
+                                fontSize = 11.sp,
+                                color = Color.LightGray,
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+
+                    Surface(
+                        color = Color(0xFF262626),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("2️⃣ 断开 Wi-Fi 连接，使用手机移动数据流量", fontWeight = FontWeight.Bold, color = Color(0xFF81C784), fontSize = 12.sp)
+                            Text(
+                                "因为当前连接的路由器 MAC 地址被高德服务器收录过，连着 Wi-Fi 会直接暴露真实经纬度。断开 Wi-Fi 换用手机蜂窝网络流量即可切断该数据源。",
+                                fontSize = 11.sp,
+                                color = Color.LightGray,
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+
+                    Surface(
+                        color = Color(0xFF262626),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("3️⃣ 启动顺序：先启模拟，再开高德", fontWeight = FontWeight.Bold, color = Color(0xFF81C784), fontSize = 12.sp)
+                            Text(
+                                "测试前在手机多任务界面彻底划掉（杀掉）高德地图后台。在 LocationMockPro 中先启动单点模拟或路线模拟，最后再打开高德地图，防止残留旧真实定位缓存。",
+                                fontSize = 11.sp,
+                                color = Color.LightGray,
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+
+                    Surface(
+                        color = Color(0xFF262626),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("4️⃣ 保持开启【4Hz 高频防跳脉冲】", fontWeight = FontWeight.Bold, color = Color(0xFF81C784), fontSize = 12.sp)
+                            Text(
+                                "主页已将心跳提速至 250ms（1秒注入4次），用极短密集的模拟信号强行占据系统位置总线，压制任何突发的真实网络定位。",
+                                fontSize = 11.sp,
+                                color = Color.LightGray,
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        try {
+                            val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                            context.startActivity(intent)
+                        } catch (_: Exception) {}
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100))
+                ) {
+                    Text("前往关闭Wi-Fi扫描")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAntiJumpGuideDialog = false }) {
+                    Text("我知道了")
                 }
             }
         )
