@@ -2,11 +2,11 @@
 
 [![Android](https://img.shields.io/badge/Platform-Android%208.0%20~%2015%20(API%2026--35)-brightgreen.svg)](https://developer.android.com)
 [![Architecture Rating](https://img.shields.io/badge/Architecture%20Review-S%2B%20(Production--Ready)-success.svg)](https://github.com/588363534zzhhrr/LocationMockPro)
-[![Version](https://img.shields.io/badge/Version-v1.1.2-blue.svg)](https://github.com/588363534zzhhrr/LocationMockPro/releases)
+[![Version](https://img.shields.io/badge/Version-v1.2.0-blue.svg)](https://github.com/588363534zzhhrr/LocationMockPro/releases)
 [![LSPosed](https://img.shields.io/badge/Module-LSPosed%20%2F%20Xposed%20Supported-purple.svg)](https://github.com/LSPosed/LSPosed)
 [![Kotlin](https://img.shields.io/badge/Language-Kotlin%202.0%2B-blue.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-purple.svg)](https://developer.android.com/jetpack/compose)
-[![Release Package](https://img.shields.io/badge/Release%20APK-1.46%20MB%20(R8%20Optimized)-informational.svg)](https://github.com/588363534zzhhrr/LocationMockPro/releases)
+[![Release Package](https://img.shields.io/badge/Release%20APK-1.49%20MB%20(R8%20Optimized)-informational.svg)](https://github.com/588363534zzhhrr/LocationMockPro/releases)
 [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg)](LICENSE)
 
 `LocationMockPro` 是一套面向移动安全研究、高精度自动化测试与地理位置算法验证的 **工业级 Android 深度仿真框架**。项目不仅提供全套高拟真传感器动力学算法与悬浮微操交互，更深度集成了原生 **LSPosed / Xposed 系统底层免杀 Hook 引擎**，具备全闭环的物理与无线电环境指纹伪装能力，正式获评 **S+ 级（Release 产线封版状态）** 工业级交付标准。
@@ -90,8 +90,13 @@ LocationMockPro/
 │           │   ├── MockLocationService.kt       # 前台常驻保活与防休眠定位服务
 │           │   └── FloatingJoystickService.kt   # 全局灵动胶囊悬浮窗与平滑防抖操纵
 │           └── ui/
+│               ├── Components.kt                # 极客暗黑风玻璃卡片、呼吸状态胶囊、遥测指标磁贴
+│               ├── SingleMockTab.kt             # 单点定位控制中心 (地图选点、快速城市、打卡收藏)
+│               ├── RouteMockTab.kt              # 路线巡航控制台 (4-Grid 航空级遥测HUD、路点与预设管理)
+│               ├── EngineDefenseTab.kt          # 极客引擎与安全防护中心 (Root/LSPosed、4Hz防跳、高斯抖动、Wi-Fi基站伪装)
+│               ├── Dialogs.kt                   # 统一暗黑弹窗系统 (体检报告、基站伪装、防跳指南等)
 │               ├── MapWebView.kt                # 交互式路线标点地图
-│               └── theme/                       # Material 3 深色主题
+│               └── theme/                       # 极客座舱暗黑主题 (Dark Precision Design System)
 ```
 
 ---
@@ -106,12 +111,23 @@ LocationMockPro/
 ### 2. 构建产物说明
 | 构建模式 | 执行命令 | 产物路径 | 体积 | 特性说明 |
 | :--- | :--- | :--- | :---: | :--- |
-| **Debug** | `./gradlew assembleDebug` | `app/build/outputs/apk/debug/app-debug.apk` | 15.3 MB | 包含完整调试符号，开发联调首选 |
-| **Release** | `./gradlew assembleRelease` | `app/build/outputs/apk/release/app-release.apk` | **1.46 MB** | **R8 生产级混淆**、压缩率超 90%、去除冗余依赖、入口类安全留存 |
+| **Debug** | `./gradlew assembleDebug` | `app/build/outputs/apk/debug/app-debug.apk` | 15.4 MB | 包含完整调试符号，开发联调首选 |
+| **Release** | `./gradlew assembleRelease` | `app/build/outputs/apk/release/app-release.apk` | **1.49 MB** | **R8 生产级混淆**、压缩率超 90%、去除冗余依赖、入口类安全留存 |
 
 ---
 
 ## 📝 更新日志 (Changelog)
+
+### v1.2.0 (Build 5) - 2026-11-03
+- **🎨 交互设计重构：极客座舱暗黑视觉体系 (Dark Precision Design System)**：
+  - **三维功能分区解耦**：彻底告别以往单页十几个卡片堆叠滚动的杂乱布局，采用现代化分段导航栏划分三大独立主视图：
+    - `📍 单点定位`：专一聚焦地图选点、坐标微调校准、常用打卡收藏与秒级瞬移；
+    - `🛣️ 路线巡航`：静态规划（操场/环线/吸附/路点）与动态巡航彻底解耦；
+    - `🛡️ 引擎安全`：整合 Root 提权、后台保活、4Hz 高频防跳、动力学物理仿真、Wi-Fi/基站伪装与 NMEA 终端；
+  - **🚀 航空级 4-Grid 实时运动遥测 HUD**：巡航时动态呼出实时时速、累计里程、计步步频、仿真海拔爬升 4 大高斯毛玻璃指标磁贴；
+  - **⚡ 动态呼吸状态胶囊 (Status Pill)**：顶栏实时感知【待命中 / 单点模拟中 / 路线巡航中 / 挂起暂停】状态并呈现动态微光呼吸灯；
+  - **💎 统一材质与配色系统**：去除所有杂乱刺眼的混杂色块，全套重构为深邃冷灰底色（`#0B0F17`）、精密卡片表面（`#131B29`）与极客电光蓝/青色（`#38BDF8` / `#00E5FF`）高亮色系；
+  - **📱 模块化架构**：将原 2600+ 行庞大巨石类彻底拆解为 `SingleMockTab`、`RouteMockTab`、`EngineDefenseTab` 与 `Dialogs` 模块，大幅提升流畅度与渲染帧率。
 
 ### v1.1.2 (Build 4) - 2026-11-02
 - **🛰️ 高精度 GNSS 3D 卫星合成引擎 (Synthetic GnssStatus)**：
