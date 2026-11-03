@@ -1,0 +1,9 @@
+{
+  "versionCode": 5,
+  "versionName": "1.2.0",
+  "downloadUrl": "https://github.com/588363534zzhhrr/LocationMockPro/releases/download/v1.2.0/app-release.apk",
+  "changelog": "1. 🚀 全新极客座舱暗黑精密视觉体系 (Dark Precision Design System)\n2. 🔀 三维功能空间彻底解耦：单点定位 / 路线巡航 / 引擎安全\n3. 🛰️ 4-Grid 航空级遥测仪表盘与 4Hz 防跳脉冲引擎\n4. 🔄 新增应用内智能在线自动更新系统（支持 Root 静默秒升与国内双源加速）\n5. 🛡️ 保持 1.49 MB 极致轻量产物体积与极速冷启动",
+  "fileSize": 1562859,
+  "publishDate": "2026-11-03",
+  "forceUpdate": false
+}

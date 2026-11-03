@@ -57,6 +57,12 @@
   - **Tier 2**：`ContentResolver.query()` 基于 `MatrixCursor` 自动降级退避；
   - **Tier 3**：LSPosed 原生 `XSharedPreferences`（`location_mock_pro_stealth_prefs`）只读持久化兜底，确保在极端沙箱环境下 100% 通信可达且永不阻塞或弄崩宿主应用。
 
+### 8. 🔄 智能在线自动更新与 Root 静默热升级 (`UpdateManager.kt`)
+- **双通道云端版本检测**：基于 GitHub Releases API 与轻量 `update.json` 双协议检测，冷启动智能轻量探测，严格遵循 SemVer 语义化版本规范。
+- **国内反代镜像极速下载 (gh-proxy)**：内置国内 CDN 镜像下载加速开关，具备镜像与官方源自动故障切换 (Failover) 与流式断点汇报。
+- **Root 极速静默秒升 (Seamless Silent Upgrade)**：若设备具备 Root（KernelSU / Magisk / su），采用 `pm install -r` 实施无感热更新，无需用户点击系统确认框；非 Root 环境无缝降级调起系统 `PackageInstaller`。
+- **现代暗黑仪表盘弹窗**：实时呈现发布日志、版本号、下载进度百分比、已下载/总计 MB，支持后台下载与异常重试。
+
 ---
 
 ## 🛠️ 项目工程结构

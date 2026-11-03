@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.antigravity.geospoofer.core.MockLocationEngine
+import com.antigravity.geospoofer.core.UpdateManager
 import com.antigravity.geospoofer.provider.LocationStateProvider
 import com.antigravity.geospoofer.ui.theme.*
 
@@ -58,6 +59,8 @@ fun EngineDefenseTab(
     liveGsv: String,
     liveSats: Int,
     liveCn0: Float,
+    onCheckUpdate: () -> Unit = {},
+    isCheckingUpdate: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -482,6 +485,129 @@ fun EngineDefenseTab(
                     }
                 }
             }
+        }
+
+        // 7. 🚀 软件版本与自动在线更新
+        GlassCard(
+            contentPadding = PaddingValues(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = TechBlue.copy(alpha = 0.2f),
+                        border = BorderStroke(1.dp, TechBlue.copy(alpha = 0.4f))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SystemUpdate,
+                            contentDescription = null,
+                            tint = TechCyanLight,
+                            modifier = Modifier
+                                .padding(6.dp)
+                                .size(18.dp)
+                        )
+                    }
+                    Column {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                "软件与内核自动更新",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = DarkCardSubtle,
+                                border = BorderStroke(1.dp, DarkCardBorder)
+                            ) {
+                                Text(
+                                    text = "v${UpdateManager.getCurrentVersionName(context)}",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TechCyanLight,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = if (isRooted) "已获 Root 提权，支持静默无感秒级覆盖安装" else "基于 GitHub Releases 在线极速更新",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+
+                Button(
+                    onClick = onCheckUpdate,
+                    enabled = !isCheckingUpdate,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = TechBlue,
+                        disabledContainerColor = DarkCardBorder
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    if (isCheckingUpdate) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text("检查更新", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 开关 1: 启动时自动检查
+            var autoCheck by remember { mutableStateOf(UpdateManager.isAutoCheckEnabled(context)) }
+            SettingToggleRow(
+                title = "启动时自动检测新版本",
+                description = "应用冷启动时轻量检测云端最新构建，并在发现更新时静默提示",
+                checked = autoCheck,
+                onCheckedChange = {
+                    autoCheck = it
+                    UpdateManager.setAutoCheckEnabled(context, it)
+                }
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // 开关 2: 国内镜像下载加速
+            var useMirror by remember { mutableStateOf(UpdateManager.isMirrorEnabled(context)) }
+            SettingToggleRow(
+                title = "国内节点下载加速 (gh-proxy)",
+                description = "针对大陆网络环境自动路由至国内高速反代镜像，支持直连双源故障转移",
+                checked = useMirror,
+                onCheckedChange = {
+                    useMirror = it
+                    UpdateManager.setMirrorEnabled(context, it)
+                }
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))

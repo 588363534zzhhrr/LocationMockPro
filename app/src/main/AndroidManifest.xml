@@ -17,9 +17,10 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
-    <!-- 地图网络瓦片加载 -->
+    <!-- 地图网络瓦片加载与自动更新 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Android 11+ (API 30+) 跨进程包可见性显式声明 -->
     <queries>

@@ -17,6 +17,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,11 +39,15 @@ import com.antigravity.geospoofer.core.MockLocationEngine
 import com.antigravity.geospoofer.core.RootHelper
 import com.antigravity.geospoofer.core.RouteSimulator
 import com.antigravity.geospoofer.core.RouteStorageHelper
+import com.antigravity.geospoofer.core.UpdateCheckResult
+import com.antigravity.geospoofer.core.UpdateInfo
+import com.antigravity.geospoofer.core.UpdateManager
 import com.antigravity.geospoofer.service.FloatingJoystickService
 import com.antigravity.geospoofer.service.MockLocationService
 import com.antigravity.geospoofer.ui.*
 import com.antigravity.geospoofer.ui.theme.*
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 
 // 路线预设数据结构
 data class PresetRoute(
@@ -368,6 +373,47 @@ fun MainScreen(
     var showGpxDialog by remember { mutableStateOf(false) }
     var showLoopGeneratorDialog by remember { mutableStateOf(false) }
 
+    // 自动更新系统状态
+    val coroutineScope = rememberCoroutineScope()
+    var isCheckingUpdate by remember { mutableStateOf(false) }
+    var updateInfoToPrompt by remember { mutableStateOf<UpdateInfo?>(null) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
+
+    val triggerUpdateCheck: (Boolean) -> Unit = { isManual ->
+        if (!isCheckingUpdate) {
+            isCheckingUpdate = true
+            if (isManual) {
+                Toast.makeText(context, "正在查询云端最新版本...", Toast.LENGTH_SHORT).show()
+            }
+            coroutineScope.launch {
+                val result = UpdateManager.checkForUpdates(context)
+                isCheckingUpdate = false
+                when (result) {
+                    is UpdateCheckResult.NewVersion -> {
+                        updateInfoToPrompt = result.info
+                        showUpdateDialog = true
+                    }
+                    is UpdateCheckResult.IsLatest -> {
+                        if (isManual) {
+                            Toast.makeText(context, "当前已是最新版本 (${result.currentVersion})", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    is UpdateCheckResult.Error -> {
+                        if (isManual) {
+                            Toast.makeText(context, "检查更新失败: ${result.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (UpdateManager.isAutoCheckEnabled(context)) {
+            triggerUpdateCheck(false)
+        }
+    }
+
     // 防检测与高频脉冲
     var enableTerrainElevation by remember { mutableStateOf(true) }
     var isAntiJumpHighFreq by remember { mutableStateOf(true) }
@@ -517,15 +563,28 @@ fun MainScreen(
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
                                 color = DarkCardSubtle,
-                                border = BorderStroke(1.dp, DarkCardBorder)
+                                border = BorderStroke(1.dp, DarkCardBorder),
+                                modifier = Modifier.clickable { triggerUpdateCheck(true) }
                             ) {
-                                Text(
-                                    text = "v1.2.0",
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = TechBlueLight,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                ) {
+                                    Text(
+                                        text = "v${UpdateManager.getCurrentVersionName(context)}",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = TechBlueLight
+                                    )
+                                    if (isCheckingUpdate) {
+                                        CircularProgressIndicator(
+                                            color = TechCyanLight,
+                                            modifier = Modifier.size(8.dp),
+                                            strokeWidth = 1.5.dp
+                                        )
+                                    }
+                                }
                             }
                         }
                         Text(
@@ -729,7 +788,9 @@ fun MainScreen(
                     liveGga = liveGga,
                     liveGsv = liveGsv,
                     liveSats = liveSats,
-                    liveCn0 = liveCn0
+                    liveCn0 = liveCn0,
+                    onCheckUpdate = { triggerUpdateCheck(true) },
+                    isCheckingUpdate = isCheckingUpdate
                 )
             }
         }
@@ -796,6 +857,21 @@ fun MainScreen(
                 waypoints = generated
                 mapController.setRouteWaypoints(generated)
                 mapController.fitRoute()
+            }
+        )
+    }
+
+    if (showUpdateDialog && updateInfoToPrompt != null) {
+        UpdateDialog(
+            updateInfo = updateInfoToPrompt!!,
+            onDismiss = { showUpdateDialog = false },
+            onRestartApp = {
+                val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    context.startActivity(launchIntent)
+                    android.os.Process.killProcess(android.os.Process.myPid())
+                }
             }
         )
     }
