@@ -1,12 +1,12 @@
 # 🛰️ LocationMockPro - 极客级 Android 定位伪装与高拟真动力学轨迹仿真系统
 
 [![Android](https://img.shields.io/badge/Platform-Android%208.0%20~%2015%20(API%2026--35)-brightgreen.svg)](https://developer.android.com)
-[![Architecture Rating](https://img.shields.io/badge/Architecture%20Review-S%2B%20(Production--Ready)-success.svg)](https://github.com/588363534zzhhrr/LocationMockPro)
-[![Version](https://img.shields.io/badge/Version-v1.2.3-blue.svg)](https://github.com/588363534zzhhrr/LocationMockPro/releases)
+[![Architecture Rating](https://img.shields.io/badge/Architecture%20Review-S%2B%20(Production--Ready)-success.svg)](https://github.com/SyncPulseDev/LocationMockPro)
+[![Version](https://img.shields.io/badge/Version-v1.2.3-blue.svg)](https://github.com/SyncPulseDev/LocationMockPro/releases)
 [![LSPosed](https://img.shields.io/badge/Module-LSPosed%20%2F%20Xposed%20Supported-purple.svg)](https://github.com/LSPosed/LSPosed)
 [![Kotlin](https://img.shields.io/badge/Language-Kotlin%202.0%2B-blue.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-purple.svg)](https://developer.android.com/jetpack/compose)
-[![Release Package](https://img.shields.io/badge/Release%20APK-1.49%20MB%20(R8%20Optimized)-informational.svg)](https://github.com/588363534zzhhrr/LocationMockPro/releases)
+[![Release Package](https://img.shields.io/badge/Release%20APK-1.49%20MB%20(R8%20Optimized)-informational.svg)](https://github.com/SyncPulseDev/LocationMockPro/releases)
 [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg)](LICENSE)
 
 `LocationMockPro` 是一套面向移动安全研究、高精度自动化测试与地理位置算法验证的 **工业级 Android 深度仿真框架**。项目不仅提供全套高拟真传感器动力学算法与悬浮微操交互，更深度集成了原生 **LSPosed / Xposed 系统底层免杀 Hook 引擎**，具备全闭环的物理与无线电环境指纹伪装能力，正式获评 **S+ 级（Release 产线封版状态）** 工业级交付标准。

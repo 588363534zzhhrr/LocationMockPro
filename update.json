@@ -1,7 +1,7 @@
 {
   "versionCode": 8,
   "versionName": "1.2.3",
-  "downloadUrl": "https://github.com/588363534zzhhrr/LocationMockPro/releases/download/v1.2.3/app-release.apk",
+  "downloadUrl": "https://github.com/SyncPulseDev/LocationMockPro/releases/download/v1.2.3/app-release.apk",
   "changelog": "1. 🛡️ LSPosed 终极免杀加固：全面补齐 Android 11+ (API 30+) getCurrentLocation 单次精准定位拦截与现代 AppOps 字符串鉴权体系\n2. ⚡ 稳定性全面提升：重构 Root 执行管道消除死锁隐患，切换异步协程彻底杜绝 UI 线程 ANR\n3. 🏃 动力学仿真守恒：引入步长余量结转机制，攻克操场跑道弯道累积减速缺陷，闭环循环自动消除空间瞬移\n4. 🛡️ Android 14+ 前台服务生命周期契约加固，消除权限受限崩溃陷阱\n5. 🗺️ 地图交互优化：切 Tab 自动毫秒级还原单点标记与规划航线，优化镜像更新源消除无效超时",
   "fileSize": 1597451,
   "publishDate": "2026-11-04",

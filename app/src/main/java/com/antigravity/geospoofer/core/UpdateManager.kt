@@ -66,9 +66,9 @@ object UpdateManager {
 
     // 默认更新源配置
     const val DEFAULT_RAW_UPDATE_URL =
-        "https://raw.githubusercontent.com/588363534zzhhrr/LocationMockPro/main/update.json"
+        "https://raw.githubusercontent.com/SyncPulseDev/LocationMockPro/main/update.json"
     const val DEFAULT_GITHUB_API_URL =
-        "https://api.github.com/repos/588363534zzhhrr/LocationMockPro/releases/latest"
+        "https://api.github.com/repos/SyncPulseDev/LocationMockPro/releases/latest"
     const val PRIMARY_MIRROR = "https://gh-proxy.com/"
 
     /**
