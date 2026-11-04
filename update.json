@@ -1,9 +1,9 @@
 {
-  "versionCode": 5,
-  "versionName": "1.2.0",
-  "downloadUrl": "https://github.com/588363534zzhhrr/LocationMockPro/releases/download/v1.2.0/app-release.apk",
-  "changelog": "1. 🚀 全新极客座舱暗黑精密视觉体系 (Dark Precision Design System)\n2. 🔀 三维功能空间彻底解耦：单点定位 / 路线巡航 / 引擎安全\n3. 🛰️ 4-Grid 航空级遥测仪表盘与 4Hz 防跳脉冲引擎\n4. 🔄 新增应用内智能在线自动更新系统（支持 Root 静默秒升与国内双源加速）\n5. 🛡️ 保持 1.49 MB 极致轻量产物体积与极速冷启动",
-  "fileSize": 1562859,
-  "publishDate": "2026-11-03",
+  "versionCode": 6,
+  "versionName": "1.2.1",
+  "downloadUrl": "https://github.com/588363534zzhhrr/LocationMockPro/releases/download/v1.2.1/app-release.apk",
+  "changelog": "1. 🏟️ IAAF 国际田联标准 400m 操场跑道算法纠偏重构，彻底解决航向旋转引起的跑道形变与位置偏移\n2. 🎯 新增 400m 操场可视化精细校准与对齐弹窗，支持 0°~360° 旋转滑块与米级步进罗盘微调\n3. 🏃 支持 1~8 分道道宽自动扩径、顺/逆时针方向切换与目标圈数总里程动态换算\n4. 🗺️ 地图底图视野中心感知联动，车标动态 GCJ-02 坐标系贴合纠偏\n5. 🔄 优化应用内自动更新与容灾加速通道，版本判定更精准",
+  "fileSize": 1593867,
+  "publishDate": "2026-11-04",
   "forceUpdate": false
 }
