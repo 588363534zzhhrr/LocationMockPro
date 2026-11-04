@@ -908,6 +908,13 @@
         }
       });
 
+      map.on('moveend', function() {
+        if (window.AndroidBridge && window.AndroidBridge.onMapCenterChanged) {
+          var c = map.getCenter();
+          window.AndroidBridge.onMapCenterChanged(parseFloat(c.lat.toFixed(6)), parseFloat(c.lng.toFixed(6)));
+        }
+      });
+
       map.on('click', function(e) {
         hideSearchResults();
         var lat = parseFloat(e.latlng.lat.toFixed(6));
@@ -1705,6 +1712,10 @@
       initMap();
       if (window.AndroidBridge) {
         window.AndroidBridge.onMapReady();
+        if (window.AndroidBridge.onMapCenterChanged && map) {
+          var c = map.getCenter();
+          window.AndroidBridge.onMapCenterChanged(parseFloat(c.lat.toFixed(6)), parseFloat(c.lng.toFixed(6)));
+        }
       }
     };
   </script>

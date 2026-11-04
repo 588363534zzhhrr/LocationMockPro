@@ -68,6 +68,7 @@ fun RouteMockTab(
     onOpenSaveDialog: () -> Unit,
     onOpenGpxDialog: () -> Unit,
     onOpenLoopDialog: () -> Unit,
+    onOpenTrackDialog: () -> Unit,
     onLaunchGpxFilePicker: () -> Unit,
     onUpdateSavedRoutes: (List<SavedRoute>) -> Unit,
     modifier: Modifier = Modifier
@@ -357,23 +358,14 @@ fun RouteMockTab(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    // 1. 400m操场
+                    // 1. 400m操场 (支持实时航向旋转与位置微调对齐)
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = DarkInputBg,
                         border = BorderStroke(1.dp, DarkDivider),
                         modifier = Modifier
                             .weight(1f)
-                            .clickable {
-                                val center = waypoints.firstOrNull() ?: CoordinateUtils.LatLng(39.908823, 116.397470)
-                                val track = CoordinateUtils.generateTrack400m(center.latitude, center.longitude)
-                                onWaypointsChange(track)
-                                mapController.setRouteWaypoints(track)
-                                mapController.fitRoute()
-                                onRouteModeChange(RouteSimulator.RouteMode.RING_LOOP)
-                                onTargetDistanceKmChange(2.0)
-                                Toast.makeText(context, "已生成 400m 操场跑道 (预设 5 圈 / 2km 闭环)", Toast.LENGTH_SHORT).show()
-                            }
+                            .clickable { onOpenTrackDialog() }
                     ) {
                         Column(
                             modifier = Modifier.padding(vertical = 8.dp, horizontal = 2.dp),

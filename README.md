@@ -2,7 +2,7 @@
 
 [![Android](https://img.shields.io/badge/Platform-Android%208.0%20~%2015%20(API%2026--35)-brightgreen.svg)](https://developer.android.com)
 [![Architecture Rating](https://img.shields.io/badge/Architecture%20Review-S%2B%20(Production--Ready)-success.svg)](https://github.com/588363534zzhhrr/LocationMockPro)
-[![Version](https://img.shields.io/badge/Version-v1.2.0-blue.svg)](https://github.com/588363534zzhhrr/LocationMockPro/releases)
+[![Version](https://img.shields.io/badge/Version-v1.2.1-blue.svg)](https://github.com/588363534zzhhrr/LocationMockPro/releases)
 [![LSPosed](https://img.shields.io/badge/Module-LSPosed%20%2F%20Xposed%20Supported-purple.svg)](https://github.com/LSPosed/LSPosed)
 [![Kotlin](https://img.shields.io/badge/Language-Kotlin%202.0%2B-blue.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-purple.svg)](https://developer.android.com/jetpack/compose)
@@ -39,8 +39,11 @@
 - **真机开机物理基数锚定**：真实设备上首次回调捕获底层硬件步数 `baseHardwareSteps`（无硬件回调时以 `12580f` 垫底），向目标 App 注入 `baseHardwareSteps + simulatedSteps` 的连续增量，符合 Android 物理步数单调递增契约。
 - **生理学步频阻尼**：速度与步频实时联动，拐角与红绿灯驻留时自动平滑衰减，步频传感器与 GPS 速度完全同步。
 
-### 5. 🏟️ 400m 标准田径场跑道与道路吸附双向纠偏
-- **400m 标准操场跑道一键生成**：严格按照国际田联（IAAF）标准几何规范（直道 84.4m + 弯道内半径 36.8m = 400.0m 封闭椭圆），支持在任意经纬度一键生成操场跑道，自动配置 5 圈（2.0 km）或自定义闭环循环。
+### 5. 🏟️ 400m 标准田径场跑道与精细校准对齐引擎
+- **IAAF 国际田联标准跑道数学几何重构**：严格按照国际田径联合会标准跑道参数构建（标准直道长 84.39m，第 1 道内突沿 36.50m / 计算跑线半径 36.80m，闭环周长精确为 400.0 米），彻底消除传统近似算法导致的椭圆畸变与位置偏移。
+- **1~8 分道道次与顺/逆时针自适应**：支持 1~8 跑道半径自适应扩展（道宽 1.22m 增量计算），默认符合田联规范左转逆时针奔跑，亦可一键反转为顺时针。
+- **跑道长轴航向旋转与四向米级对齐罗盘**：独家研发可视化跑道校准器（`Track400mDialog`），支持 0~360° 航向角平滑滑块微调，结合上/下/左/右四向米级步进罗盘（1m/5m/10m/20m），在卫星地图底图上实现像素级精准贴合。
+- **地图视野中心感知与车标火星坐标纠偏**：地图视野移动时实时同步视野中心点，未选点时智能锚定当前屏幕中心；路线模拟巡航时自动对车标位置进行 GCJ-02 动态纠偏，保证车标与高德/卫星航线绝对对齐贴合。
 - **道路吸附 WGS-84 / GCJ-02 双向纠偏引擎**：OpenStreetMap OSRM 拓扑引擎在请求前先将 GCJ-02 转为 WGS-84，吸附返回后再转回 GCJ-02，彻底消除两点吸附在地图上的 500m~1km 剧烈偏移问题。
 
 ### 6. 🪟 灵动悬浮控制岛 Pro & 巡航自走锁定 (Cruise Lock)
@@ -123,6 +126,13 @@ LocationMockPro/
 ---
 
 ## 📝 更新日志 (Changelog)
+
+### v1.2.1 (Build 6) - 2026-11-04
+- **🏟️ 400m 标准操场跑道算法纠偏与精细校准引擎**：
+  - **IAAF 田联标准数学几何重构**：依据国际田联真实标准重新建模（直道 84.39m，第 1 道周长精准 400.0m），修复航向角旋转算法正负逆转导致的位置偏移缺陷；
+  - **跑道全方位校准弹窗 (`Track400mDialog`)**：支持 0°~360° 航向角旋转滑块、四向米级微调罗盘（1m/5m/10m/20m）、1~8 道次切换、顺/逆时针方向与目标圈数总里程动态计算；
+  - **地图视图中心感知与底图实时联动**：未选点时自动感知地图当前视野中心生成跑道，调整时在卫星底图上实时呈现预览；
+  - **模拟运行车标 GCJ-02 坐标贴合纠偏**：解决火星坐标系下模拟运行中车标与高德图层及轨迹线轻微错位的问题。
 
 ### v1.2.0 (Build 5) - 2026-11-03
 - **🎨 交互设计重构：极客座舱暗黑视觉体系 (Dark Precision Design System)**：

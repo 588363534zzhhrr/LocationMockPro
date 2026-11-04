@@ -372,6 +372,8 @@ fun MainScreen(
     var showSaveDialog by remember { mutableStateOf(false) }
     var showGpxDialog by remember { mutableStateOf(false) }
     var showLoopGeneratorDialog by remember { mutableStateOf(false) }
+    var showTrackDialog by remember { mutableStateOf(false) }
+    var originalWaypointsBeforeTrack by remember { mutableStateOf<List<CoordinateUtils.LatLng>?>(null) }
 
     // 自动更新系统状态
     val coroutineScope = rememberCoroutineScope()
@@ -491,10 +493,15 @@ fun MainScreen(
         }
     }
 
-    // 监听模拟运行状态，实时驱动地图车标与航向
-    LaunchedEffect(simState.isSimulating, simState.currentLat, simState.currentLon, simState.currentBearing) {
+    // 监听模拟运行状态，实时驱动地图车标与航向（若启用火星坐标则逆转纠偏，确保车标完美贴合高德图层与规划轨迹）
+    LaunchedEffect(simState.isSimulating, simState.currentLat, simState.currentLon, simState.currentBearing, isGcj02Route) {
         if (simState.isSimulating) {
-            mapController.updateSimPosition(simState.currentLat, simState.currentLon, simState.currentBearing)
+            val displayPt = if (isGcj02Route) {
+                CoordinateUtils.wgs84ToGcj02(simState.currentLat, simState.currentLon)
+            } else {
+                CoordinateUtils.LatLng(simState.currentLat, simState.currentLon)
+            }
+            mapController.updateSimPosition(displayPt.latitude, displayPt.longitude, simState.currentBearing)
         } else {
             mapController.stopSimPosition()
         }
@@ -712,6 +719,10 @@ fun MainScreen(
                     onOpenSaveDialog = { showSaveDialog = true },
                     onOpenGpxDialog = { showGpxDialog = true },
                     onOpenLoopDialog = { showLoopGeneratorDialog = true },
+                    onOpenTrackDialog = {
+                        originalWaypointsBeforeTrack = waypoints
+                        showTrackDialog = true
+                    },
                     onLaunchGpxFilePicker = { gpxFileLauncher.launch("*/*") },
                     onUpdateSavedRoutes = { savedRoutes = it }
                 )
@@ -848,7 +859,9 @@ fun MainScreen(
     }
 
     if (showLoopGeneratorDialog) {
-        val center = if (waypoints.isNotEmpty()) waypoints.first() else CoordinateUtils.LatLng(39.908823, 116.397470)
+        val center = waypoints.firstOrNull()
+            ?: mapController.currentCenter
+            ?: CoordinateUtils.LatLng(39.908823, 116.397470)
         LoopGeneratorDialog(
             centerLat = center.latitude,
             centerLon = center.longitude,
@@ -857,6 +870,36 @@ fun MainScreen(
                 waypoints = generated
                 mapController.setRouteWaypoints(generated)
                 mapController.fitRoute()
+            }
+        )
+    }
+
+    if (showTrackDialog) {
+        val initialCenter = waypoints.firstOrNull()
+            ?: mapController.currentCenter
+            ?: CoordinateUtils.LatLng(39.908823, 116.397470)
+        Track400mDialog(
+            initialCenterLat = initialCenter.latitude,
+            initialCenterLon = initialCenter.longitude,
+            onDismiss = {
+                originalWaypointsBeforeTrack?.let { orig ->
+                    waypoints = orig
+                    mapController.setRouteWaypoints(orig)
+                }
+                showTrackDialog = false
+            },
+            onPreview = { previewPoints ->
+                waypoints = previewPoints
+                mapController.setRouteWaypoints(previewPoints)
+            },
+            onConfirm = { finalPoints, targetKm ->
+                waypoints = finalPoints
+                mapController.setRouteWaypoints(finalPoints)
+                mapController.fitRoute()
+                routeMode = RouteSimulator.RouteMode.RING_LOOP
+                targetDistanceKm = targetKm
+                originalWaypointsBeforeTrack = null
+                showTrackDialog = false
             }
         )
     }

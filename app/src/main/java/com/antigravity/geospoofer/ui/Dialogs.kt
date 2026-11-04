@@ -7,6 +7,7 @@ import android.content.Intent
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.antigravity.geospoofer.PresetRoute
@@ -669,4 +671,334 @@ fun LoopGeneratorDialog(
             TextButton(onClick = onDismiss) { Text("取消") }
         }
     )
+}
+
+/**
+ * 🏟️ 400m 标准操场跑道校准与精细对齐弹窗
+ * 支持：实时航向旋转、位置四向米级微调、分道道次选择、顺逆时针奔跑、目标圈数设定与全景实时地图联动
+ */
+@Composable
+fun Track400mDialog(
+    initialCenterLat: Double,
+    initialCenterLon: Double,
+    onDismiss: () -> Unit,
+    onPreview: (List<CoordinateUtils.LatLng>) -> Unit,
+    onConfirm: (List<CoordinateUtils.LatLng>, targetKm: Double) -> Unit
+) {
+    val context = LocalContext.current
+    var centerLat by remember { mutableDoubleStateOf(initialCenterLat) }
+    var centerLon by remember { mutableDoubleStateOf(initialCenterLon) }
+    var orientationDeg by remember { mutableFloatStateOf(0f) }
+    var selectedLane by remember { mutableIntStateOf(1) }
+    var isCounterClockwise by remember { mutableStateOf(true) }
+    var nudgeStepMeters by remember { mutableDoubleStateOf(5.0) }
+    var targetLapsText by remember { mutableStateOf("5") }
+
+    // 当参数发生变化时，实时计算跑道点阵并通知外部更新地图预览
+    LaunchedEffect(centerLat, centerLon, orientationDeg, selectedLane, isCounterClockwise) {
+        val pts = CoordinateUtils.generateTrack400m(
+            centerLat = centerLat,
+            centerLon = centerLon,
+            orientationDeg = orientationDeg,
+            lane = selectedLane,
+            isCounterClockwise = isCounterClockwise
+        )
+        onPreview(pts)
+    }
+
+    // 单圈周长计算（第1道 400.0m，外道依次增加）
+    val lapDistanceMeters = if (selectedLane == 1) {
+        400.0
+    } else {
+        2.0 * 84.39 + 2.0 * Math.PI * (36.50 + (selectedLane - 1) * 1.22 + 0.20)
+    }
+
+    val laps = targetLapsText.toDoubleOrNull() ?: 5.0
+    val totalEstimatedKm = (lapDistanceMeters * laps) / 1000.0
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("🏟️ 400m操场跑道校准与对齐", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 480.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "提示：所有调整均在底图实时更新。可切换卫星图层，旋转并平移跑道使其与现实校园操场完全贴合。",
+                    fontSize = 11.sp,
+                    color = TextSecondary
+                )
+
+                // ==================== 1. 跑道航向旋转角度 ====================
+                Surface(
+                    color = DarkInputBg,
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, DarkDivider),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("📐 跑道长轴航向角", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                            Text(
+                                "${orientationDeg.toInt()}° (${getOrientationDesc(orientationDeg)})",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TechBlueLight
+                            )
+                        }
+
+                        Slider(
+                            value = orientationDeg,
+                            onValueChange = { orientationDeg = it },
+                            valueRange = 0f..359f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = TechBlue,
+                                activeTrackColor = TechBlue,
+                                inactiveTrackColor = DarkDivider
+                            )
+                        )
+
+                        // 快捷方向预设
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            listOf(
+                                Pair("正北 0°", 0f),
+                                Pair("正东 90°", 90f),
+                                Pair("东北 45°", 45f),
+                                Pair("东南 135°", 135f)
+                            ).forEach { (label, angle) ->
+                                FilterChip(
+                                    selected = (orientationDeg.toInt() % 180) == (angle.toInt() % 180),
+                                    onClick = { orientationDeg = angle },
+                                    label = { Text(label, fontSize = 10.sp) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // 细粒度微调步进按钮
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            listOf(-15f, -5f, -1f, 1f, 5f, 15f).forEach { step ->
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = DarkCardSubtle,
+                                    border = BorderStroke(1.dp, DarkDivider),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            orientationDeg = ((orientationDeg + step + 360f) % 360f)
+                                        }
+                                ) {
+                                    Text(
+                                        text = if (step > 0) "+${step.toInt()}°" else "${step.toInt()}°",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = TextPrimary,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(vertical = 5.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ==================== 2. 位置四向微调平移 ====================
+                Surface(
+                    color = DarkInputBg,
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, DarkDivider),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("🧭 跑道中心位置平移", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                listOf(2.0, 5.0, 10.0).forEach { dist ->
+                                    FilterChip(
+                                        selected = nudgeStepMeters == dist,
+                                        onClick = { nudgeStepMeters = dist },
+                                        label = { Text("${dist.toInt()}米", fontSize = 9.sp) }
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // 四向平移按钮组
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(
+                                Triple("↑ 北移", 0f, TechBlue),
+                                Triple("↓ 南移", 180f, TechBlue),
+                                Triple("← 西移", 270f, TechBlue),
+                                Triple("→ 东移", 90f, TechBlue)
+                            ).forEach { (label, bearing, color) ->
+                                Button(
+                                    onClick = {
+                                        val moved = CoordinateUtils.movePoint(centerLat, centerLon, nudgeStepMeters, bearing)
+                                        centerLat = moved.latitude
+                                        centerLon = moved.longitude
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(6.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = color.copy(alpha = 0.2f)),
+                                    border = BorderStroke(1.dp, color.copy(alpha = 0.5f)),
+                                    contentPadding = PaddingValues(vertical = 6.dp, horizontal = 2.dp)
+                                ) {
+                                    Text(label, fontSize = 11.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ==================== 3. 道次与奔跑方向 ====================
+                Surface(
+                    color = DarkInputBg,
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, DarkDivider),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("🏃 跑步道次与方向", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+
+                        // 道次
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            listOf(
+                                Pair(1, "第1道 (400m)"),
+                                Pair(2, "第2道 (407m)"),
+                                Pair(4, "第4道 (423m)"),
+                                Pair(8, "第8道 (453m)")
+                            ).forEach { (lane, desc) ->
+                                FilterChip(
+                                    selected = selectedLane == lane,
+                                    onClick = { selectedLane = lane },
+                                    label = { Text(desc, fontSize = 10.sp) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+
+                        // 方向
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            FilterChip(
+                                selected = isCounterClockwise,
+                                onClick = { isCounterClockwise = true },
+                                label = { Text("🔄 逆时针(田联标准/左转)", fontSize = 10.sp) },
+                                modifier = Modifier.weight(1f)
+                            )
+                            FilterChip(
+                                selected = !isCounterClockwise,
+                                onClick = { isCounterClockwise = false },
+                                label = { Text("🔁 顺时针(右转)", fontSize = 10.sp) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+
+                // ==================== 4. 目标圈数与总里程 ====================
+                Surface(
+                    color = DarkInputBg,
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, DarkDivider),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("🏁 目标圈数与里程", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                            Text(
+                                "预估总计: ${"%.2f".format(totalEstimatedKm)} km",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TechEmeraldLight
+                            )
+                        }
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            listOf("3", "5", "8", "10", "12.5").forEach { lap ->
+                                FilterChip(
+                                    selected = targetLapsText == lap,
+                                    onClick = { targetLapsText = lap },
+                                    label = { Text("${lap}圈", fontSize = 10.sp) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = targetLapsText,
+                            onValueChange = { targetLapsText = it },
+                            label = { Text("自定义圈数 (圈)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val finalPts = CoordinateUtils.generateTrack400m(
+                        centerLat = centerLat,
+                        centerLon = centerLon,
+                        orientationDeg = orientationDeg,
+                        lane = selectedLane,
+                        isCounterClockwise = isCounterClockwise
+                    )
+                    onConfirm(finalPts, totalEstimatedKm)
+                    Toast.makeText(context, "已精准对齐 400m 操场跑道 (预设 ${targetLapsText} 圈 / ${"%.2f".format(totalEstimatedKm)} km 闭环)", Toast.LENGTH_SHORT).show()
+                }
+            ) {
+                Text("确定应用")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        }
+    )
+}
+
+private fun getOrientationDesc(deg: Float): String {
+    val norm = ((deg % 360f) + 360f) % 360f
+    return when {
+        norm < 22.5f || norm >= 337.5f -> "南北向"
+        norm < 67.5f -> "东北-西南"
+        norm < 112.5f -> "东西向"
+        norm < 157.5f -> "东南-西北"
+        norm < 202.5f -> "南北向"
+        norm < 247.5f -> "东北-西南"
+        norm < 292.5f -> "东西向"
+        else -> "东南-西北"
+    }
 }

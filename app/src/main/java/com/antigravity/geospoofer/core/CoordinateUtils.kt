@@ -186,64 +186,81 @@ object CoordinateUtils {
      * 生成标准 400 米国际田联标准田径场跑道闭环路线（包含两条直道与两段半圆弯道，完美适配校园跑、体测与操场巡航）
      * @param centerLat 操场中心纬度
      * @param centerLon 操场中心经度
-     * @param orientationDeg 跑道长轴航向角（0 为南北向，90 为东西向）
+     * @param orientationDeg 跑道长轴航向角（顺时针度数，0 为南北向，90 为东西向）
+     * @param lane 道次（1~8，第1道周长标准 400.0 米，外道依次增加）
+     * @param isCounterClockwise 是否逆时针奔跑（IAAF国际田联标准为逆时针左转，默认 true）
+     * @param pointsPerCurve 半圆弯道采样点数（默认 10 点，确保圆弧平滑）
      */
     fun generateTrack400m(
         centerLat: Double,
         centerLon: Double,
-        orientationDeg: Float = 0f
+        orientationDeg: Float = 0f,
+        lane: Int = 1,
+        isCounterClockwise: Boolean = true,
+        pointsPerCurve: Int = 10
     ): List<LatLng> {
-        val halfL = 42.2   // 直道半长：直道全长约 84.4 米
-        val radius = 36.8  // 内道跑步线转弯半径：半径约 36.8 米（标准 400 米）
-        val radOrientation = Math.toRadians(orientationDeg.toDouble())
-        val cosO = cos(radOrientation)
-        val sinO = sin(radOrientation)
-
-        val localCoords = mutableListOf<Pair<Double, Double>>() // (dx, dy) 相对中心（米）
-
-        // 1. 东侧直道（从北向南）
-        localCoords.add(Pair(radius, halfL))
-        localCoords.add(Pair(radius, 0.0))
-        localCoords.add(Pair(radius, -halfL))
-
-        // 2. 南侧半圆弯道（从东向西）
-        val steps = 8
-        for (i in 1..steps) {
-            val angle = 0.0 - (i.toDouble() / steps) * PI // 0 -> -PI
-            val dx = radius * cos(angle)
-            val dy = -halfL + radius * sin(angle)
-            localCoords.add(Pair(dx, dy))
+        val halfL = 42.195   // 直道半长：IAAF标准直道全长 84.39 米
+        // IAAF标准：第1道内突沿半径 36.50m，第1道计算跑线半径 36.80m（+0.30m）
+        // 第 2~8 道（分道宽 1.22m），计算跑线距分道线外 0.20m
+        val clampedLane = lane.coerceIn(1, 8)
+        val radius = if (clampedLane == 1) {
+            36.80
+        } else {
+            36.50 + (clampedLane - 1) * 1.22 + 0.20
         }
 
-        // 3. 西侧直道（从南向北）
-        localCoords.add(Pair(-radius, -halfL))
-        localCoords.add(Pair(-radius, 0.0))
-        localCoords.add(Pair(-radius, halfL))
+        val localCoords = mutableListOf<Pair<Double, Double>>() // (lx: 东向米, ly: 北向米)
 
-        // 4. 北侧半圆弯道（从西向东）
-        for (i in 1..steps) {
-            val angle = PI - (i.toDouble() / steps) * PI // PI -> 0
-            val dx = radius * cos(angle)
-            val dy = halfL + radius * sin(angle)
-            localCoords.add(Pair(dx, dy))
+        // IAAF 标准逆时针路线（向左转弯）：
+        // 1. 东侧直道：从南向北奔跑
+        val straightSteps = 4
+        for (i in 0 until straightSteps) {
+            val y = -halfL + (2.0 * halfL * i / straightSteps)
+            localCoords.add(Pair(radius, y))
         }
 
-        // 将旋转后的局部米级坐标转换为真实经纬度
+        // 2. 北侧半圆弯道：从东向西逆时针转弯 (角度 0 -> PI)
+        for (i in 0 until pointsPerCurve) {
+            val theta = (i.toDouble() / pointsPerCurve) * PI
+            val x = radius * cos(theta)
+            val y = halfL + radius * sin(theta)
+            localCoords.add(Pair(x, y))
+        }
+
+        // 3. 西侧直道：从北向南奔跑
+        for (i in 0 until straightSteps) {
+            val y = halfL - (2.0 * halfL * i / straightSteps)
+            localCoords.add(Pair(-radius, y))
+        }
+
+        // 4. 南侧半圆弯道：从西向东逆时针转弯 (角度 PI -> 2*PI)
+        for (i in 0 until pointsPerCurve) {
+            val theta = PI + (i.toDouble() / pointsPerCurve) * PI
+            val x = radius * cos(theta)
+            val y = -halfL + radius * sin(theta)
+            localCoords.add(Pair(x, y))
+        }
+
+        // 如果用户需要顺时针，则将局部坐标反向
+        val orderedCoords = if (isCounterClockwise) localCoords else localCoords.reversed()
+
+        // 将局部米级坐标基于航向角 orientationDeg 进行顺时针旋转，并计算经纬度
+        val normalizedOrientation = ((orientationDeg % 360f) + 360f) % 360f
         val points = mutableListOf<LatLng>()
-        for ((lx, ly) in localCoords) {
-            val rotX = lx * cosO - ly * sinO
-            val rotY = lx * sinO + ly * cosO
-            val dist = sqrt(rotX * rotX + rotY * rotY)
+
+        for ((lx, ly) in orderedCoords) {
+            val dist = hypot(lx, ly)
             if (dist < 0.1) {
                 points.add(LatLng(centerLat, centerLon))
             } else {
-                var bearing = Math.toDegrees(atan2(rotX, rotY)).toFloat()
-                if (bearing < 0) bearing += 360f
-                points.add(movePoint(centerLat, centerLon, dist, bearing))
+                // localBearing: 局部真北航向（0°为北，90°为东，180°为南，270°为西）
+                val localBearing = Math.toDegrees(atan2(lx, ly))
+                val finalBearing = ((localBearing + normalizedOrientation) % 360.0 + 360.0) % 360.0
+                points.add(movePoint(centerLat, centerLon, dist, finalBearing.toFloat()))
             }
         }
 
-        // 保证完美闭环
+        // 保证闭合回路：终点精确连接起点
         if (points.isNotEmpty()) {
             points.add(points.first())
         }

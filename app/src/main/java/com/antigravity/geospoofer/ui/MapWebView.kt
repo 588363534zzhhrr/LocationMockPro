@@ -34,6 +34,7 @@ import org.json.JSONObject
 class MapController {
     var webView: WebView? = null
     var isReady: Boolean = false
+    var currentCenter: CoordinateUtils.LatLng? = null
     private val pendingCommands = mutableListOf<String>()
 
     fun executeJs(js: String) {
@@ -99,13 +100,19 @@ class AndroidMapBridge(
     private val onAddWaypoint: (Double, Double) -> Unit,
     private val onWaypointsChange: (List<CoordinateUtils.LatLng>) -> Unit,
     private val onSinglePointChange: (Double, Double) -> Unit,
-    private val onToggleExpand: () -> Unit = {}
+    private val onToggleExpand: () -> Unit = {},
+    private val onCenterChange: (Double, Double) -> Unit = { _, _ -> }
 ) {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     @JavascriptInterface
     fun onMapReady() {
         mainHandler.post { onReady() }
+    }
+
+    @JavascriptInterface
+    fun onMapCenterChanged(lat: Double, lon: Double) {
+        mainHandler.post { onCenterChange(lat, lon) }
     }
 
     @JavascriptInterface
@@ -211,7 +218,10 @@ fun InteractiveMapCard(
                             onAddWaypoint = onWaypointAdded,
                             onWaypointsChange = onWaypointsUpdated,
                             onSinglePointChange = onSinglePointSelected,
-                            onToggleExpand = onToggleExpand
+                            onToggleExpand = onToggleExpand,
+                            onCenterChange = { lat, lon ->
+                                controller.currentCenter = CoordinateUtils.LatLng(lat, lon)
+                            }
                         )
                         addJavascriptInterface(bridge, "AndroidBridge")
 
