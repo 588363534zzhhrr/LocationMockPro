@@ -200,14 +200,12 @@ object UpdateManager {
 
         if (useMirror) {
             urlsToTry.add("$PRIMARY_MIRROR$DEFAULT_RAW_UPDATE_URL")
-            urlsToTry.add("$PRIMARY_MIRROR$DEFAULT_GITHUB_API_URL")
             urlsToTry.add(DEFAULT_RAW_UPDATE_URL)
             urlsToTry.add(DEFAULT_GITHUB_API_URL)
         } else {
             urlsToTry.add(DEFAULT_RAW_UPDATE_URL)
             urlsToTry.add(DEFAULT_GITHUB_API_URL)
             urlsToTry.add("$PRIMARY_MIRROR$DEFAULT_RAW_UPDATE_URL")
-            urlsToTry.add("$PRIMARY_MIRROR$DEFAULT_GITHUB_API_URL")
         }
 
         var lastError = "无法连接至更新服务器"

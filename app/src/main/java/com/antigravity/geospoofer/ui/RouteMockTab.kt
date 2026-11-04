@@ -81,6 +81,13 @@ fun RouteMockTab(
     var newLonText by remember { mutableStateOf("") }
     var showPresetDrawer by remember { mutableStateOf(false) }
 
+    // 页面进入或切换 Tab 导致地图组件重绘时，自动重放恢复已规划路网与轨迹航线
+    LaunchedEffect(mapController.isReady, waypoints) {
+        if (mapController.isReady && waypoints.isNotEmpty()) {
+            mapController.setRouteWaypoints(waypoints)
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()

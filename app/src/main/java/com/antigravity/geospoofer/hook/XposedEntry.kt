@@ -269,43 +269,69 @@ class XposedEntry : IXposedHookLoadPackage {
      * 隐藏系统开发者选项 mock_location 标志位与 AppOps 权限判定
      */
     private fun hookSettingsAndAppOps(lpparam: XC_LoadPackage.LoadPackageParam) {
-        // A. Settings.Secure.getString / getInt
-        try {
-            XposedHelpers.findAndHookMethod(
-                Settings.Secure::class.java,
-                "getString",
-                android.content.ContentResolver::class.java,
-                String::class.java,
-                object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        val key = param.args[1] as? String
-                        if (key == "mock_location" || key == "allow_mock_location") {
-                            param.result = "0"
+        // A. Settings.Secure & Settings.Global getString / getInt (覆盖 2 参数与 3 参数重载)
+        val settingsClasses = listOf(Settings.Secure::class.java, Settings.Global::class.java)
+        for (clazz in settingsClasses) {
+            try {
+                // getString(ContentResolver, String)
+                XposedHelpers.findAndHookMethod(
+                    clazz,
+                    "getString",
+                    android.content.ContentResolver::class.java,
+                    String::class.java,
+                    object : XC_MethodHook() {
+                        override fun beforeHookedMethod(param: MethodHookParam) {
+                            val key = param.args[1] as? String
+                            if (key == "mock_location" || key == "allow_mock_location") {
+                                param.result = "0"
+                            }
                         }
                     }
-                }
-            )
+                )
 
-            XposedHelpers.findAndHookMethod(
-                Settings.Secure::class.java,
-                "getInt",
-                android.content.ContentResolver::class.java,
-                String::class.java,
-                Int::class.javaPrimitiveType,
-                object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        val key = param.args[1] as? String
-                        if (key == "mock_location" || key == "allow_mock_location") {
-                            param.result = 0
+                // getInt(ContentResolver, String) - 双参数原生标准重载
+                XposedHelpers.findAndHookMethod(
+                    clazz,
+                    "getInt",
+                    android.content.ContentResolver::class.java,
+                    String::class.java,
+                    object : XC_MethodHook() {
+                        override fun beforeHookedMethod(param: MethodHookParam) {
+                            val key = param.args[1] as? String
+                            if (key == "mock_location" || key == "allow_mock_location") {
+                                param.result = 0
+                            }
                         }
                     }
-                }
-            )
-        } catch (_: Throwable) {}
+                )
 
-        // B. AppOpsManager.checkOp / checkOpNoThrow (OP_MOCK_LOCATION = 58)
-        val opMethods = listOf("checkOp", "checkOpNoThrow", "noteOp", "noteOpNoThrow", "noteProxyOp", "noteProxyOpNoThrow")
+                // getInt(ContentResolver, String, Int) - 三参数带默认值重载
+                XposedHelpers.findAndHookMethod(
+                    clazz,
+                    "getInt",
+                    android.content.ContentResolver::class.java,
+                    String::class.java,
+                    Int::class.javaPrimitiveType,
+                    object : XC_MethodHook() {
+                        override fun beforeHookedMethod(param: MethodHookParam) {
+                            val key = param.args[1] as? String
+                            if (key == "mock_location" || key == "allow_mock_location") {
+                                param.result = 0
+                            }
+                        }
+                    }
+                )
+            } catch (_: Throwable) {}
+        }
+
+        // B. AppOpsManager.checkOp / checkOpNoThrow / noteOp (覆盖 Int 与 String 两种操作符体系)
+        val opMethods = listOf(
+            "checkOp", "checkOpNoThrow", "noteOp", "noteOpNoThrow",
+            "noteProxyOp", "noteProxyOpNoThrow", "unsafeCheckOp",
+            "unsafeCheckOpNoThrow", "unsafeCheckOpRaw", "unsafeCheckOpRawNoThrow"
+        )
         for (m in opMethods) {
+            // 1. 拦截 Int 参数体系 (OP_MOCK_LOCATION = 58)
             try {
                 XposedHelpers.findAndHookMethod(
                     AppOpsManager::class.java,
@@ -317,6 +343,25 @@ class XposedEntry : IXposedHookLoadPackage {
                         override fun beforeHookedMethod(param: MethodHookParam) {
                             val op = param.args[0] as? Int
                             if (op == 58) { // OP_MOCK_LOCATION
+                                param.result = AppOpsManager.MODE_IGNORED
+                            }
+                        }
+                    }
+                )
+            } catch (_: Throwable) {}
+
+            // 2. 拦截现代 Android (API 23~35) String 参数体系 (OPSTR_MOCK_LOCATION = "android:mock_location")
+            try {
+                XposedHelpers.findAndHookMethod(
+                    AppOpsManager::class.java,
+                    m,
+                    String::class.java,
+                    Int::class.javaPrimitiveType,
+                    String::class.java,
+                    object : XC_MethodHook() {
+                        override fun beforeHookedMethod(param: MethodHookParam) {
+                            val op = param.args[0] as? String
+                            if (op == "android:mock_location" || op == "mock_location" || op == "OPSTR_MOCK_LOCATION") {
                                 param.result = AppOpsManager.MODE_IGNORED
                             }
                         }
@@ -471,6 +516,57 @@ class XposedEntry : IXposedHookLoadPackage {
                         }
                     }
                 )
+            } catch (_: Throwable) {}
+        }
+
+        // C. Android 11+ (API 30+) getCurrentLocation 拦截注入（解决钉钉/企微/飞书/高德等打卡首选单次精准定位穿透风险）
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                val currentLocMethods = LocationManager::class.java.declaredMethods.filter {
+                    it.name == "getCurrentLocation"
+                }
+                for (method in currentLocMethods) {
+                    XposedBridge.hookMethod(method, object : XC_MethodHook() {
+                        override fun beforeHookedMethod(param: MethodHookParam) {
+                            val state = getSimState() ?: return
+                            if (!state.isMocking) return
+
+                            var executor: Executor? = null
+                            var consumer: Any? = null
+                            var providerName = LocationManager.GPS_PROVIDER
+
+                            for (arg in param.args) {
+                                if (arg is String) {
+                                    providerName = arg
+                                } else if (arg is Executor) {
+                                    executor = arg
+                                } else if (arg != null && (arg.javaClass.name.contains("Consumer") || arg is java.util.function.Consumer<*>)) {
+                                    consumer = arg
+                                }
+                            }
+
+                            if (consumer != null) {
+                                val spoofedLoc = buildSpoofedLocation(providerName, state)
+                                val targetExec = executor ?: Executor { r -> mainHandler.post(r) }
+                                try {
+                                    targetExec.execute {
+                                        try {
+                                            val acceptMethod = consumer.javaClass.methods.firstOrNull {
+                                                it.name == "accept" && it.parameterTypes.size == 1
+                                            }
+                                            acceptMethod?.invoke(consumer, spoofedLoc)
+                                        } catch (_: Throwable) {}
+                                    }
+                                } catch (_: Throwable) {
+                                    try {
+                                        XposedHelpers.callMethod(consumer, "accept", spoofedLoc)
+                                    } catch (_: Throwable) {}
+                                }
+                                param.result = null // 阻断系统原方法执行，杜绝真实基站与物理 GPS 穿透
+                            }
+                        }
+                    })
+                }
             } catch (_: Throwable) {}
         }
 

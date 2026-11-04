@@ -230,6 +230,16 @@ class LocationStateProvider : ContentProvider() {
                     putInt(KEY_CELL_CID, cellCid)
                     apply()
                 }
+
+                // 显式授予 shared_prefs 全局可读权限，穿透 Linux DAC 权限隔离，使 LSPosed Tier 3 XSharedPreferences 真正生效
+                try {
+                    val prefsFile = java.io.File(ctx.applicationInfo.dataDir, "shared_prefs/${PREFS_NAME}.xml")
+                    if (prefsFile.exists()) {
+                        prefsFile.setReadable(true, false)
+                        prefsFile.parentFile?.setReadable(true, false)
+                        prefsFile.parentFile?.setExecutable(true, false)
+                    }
+                } catch (_: Throwable) {}
             } catch (_: Throwable) {}
         }
 

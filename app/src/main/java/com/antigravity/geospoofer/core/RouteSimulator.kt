@@ -134,6 +134,15 @@ class RouteSimulator(
             val startTimeMs = System.currentTimeMillis()
 
             var currentWaypoints = waypoints.toList()
+            // 闭环模式自动防瞬移：若用户路标末点未连接首点，自动平滑封闭，杜绝循环交界处百米空间折跃
+            if (mode == RouteMode.RING_LOOP && currentWaypoints.size >= 2) {
+                val first = currentWaypoints.first()
+                val last = currentWaypoints.last()
+                val gap = CoordinateUtils.calculateDistance(last.latitude, last.longitude, first.latitude, first.longitude)
+                if (gap > 10.0) {
+                    currentWaypoints = currentWaypoints + first
+                }
+            }
             var isReverse = false
             var overallCumulativeDistance = 0.0
             var cumulativeElevationGain = 0.0
@@ -176,6 +185,7 @@ class RouteSimulator(
                 var distanceSinceLastStop = 0.0
                 var nextStopDistance = 600.0 + (Math.random() * 500.0)
                 val stopReasons = listOf("等候红绿灯", "避让路口车辆", "系鞋带与饮水补给", "驻留调整呼吸")
+                var segmentRemainder = 0.0
 
                 for (i in 0 until currentWaypoints.size - 1) {
                     if (!isActive) break
@@ -189,7 +199,9 @@ class RouteSimulator(
                     var angleDiff = abs(bearing - nextBearing)
                     if (angleDiff > 180f) angleDiff = 360f - angleDiff
 
-                    var traveledInSegment = 0.0
+                    // 动力学步长守恒：继承前一路段末尾 tick 溢出的位移量，杜绝小折线段（如操场弯道）累积掉速
+                    var traveledInSegment = segmentRemainder.coerceAtMost(segDist * 0.9)
+                    segmentRemainder = 0.0
 
                     while (traveledInSegment < segDist && isActive) {
                         // 1. 若处于暂停状态，保持原地高频防跳心跳
@@ -346,6 +358,10 @@ class RouteSimulator(
 
                         onProgress?.invoke(nextPoint, bearing)
                         delay(tickIntervalMs)
+                    }
+
+                    if (traveledInSegment >= segDist) {
+                        segmentRemainder = (traveledInSegment - segDist).coerceAtLeast(0.0)
                     }
                 }
 

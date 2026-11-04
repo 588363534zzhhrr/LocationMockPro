@@ -65,19 +65,24 @@ class MockLocationService : Service() {
     fun startForegroundSafely(message: String) {
         val hasFine = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         val hasCoarse = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        if (!hasFine && !hasCoarse) {
-            return
-        }
 
         try {
             val notification = buildNotification(message)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+            if (hasFine || hasCoarse) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+                } else {
+                    startForeground(NOTIFICATION_ID, notification)
+                }
             } else {
+                // 若定位权限缺失，先以基础前台服务履约系统 5 秒生命周期，杜绝 ForegroundServiceDidNotStartInTimeException 闪退
                 startForeground(NOTIFICATION_ID, notification)
             }
         } catch (e: Exception) {
             e.printStackTrace()
+            try {
+                startForeground(NOTIFICATION_ID, buildNotification(message))
+            } catch (_: Exception) {}
         }
     }
 

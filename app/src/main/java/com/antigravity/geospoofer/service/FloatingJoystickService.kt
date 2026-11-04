@@ -534,11 +534,15 @@ class FloatingJoystickService : Service() {
         super.onDestroy()
         serviceScope.cancel()
         if (rootContainer != null) {
-            windowManager.removeView(rootContainer)
+            try {
+                windowManager.removeView(rootContainer)
+            } catch (_: Exception) {}
             rootContainer = null
         }
         if (isBound) {
-            unbindService(connection)
+            try {
+                unbindService(connection)
+            } catch (_: Exception) {}
             isBound = false
         }
     }

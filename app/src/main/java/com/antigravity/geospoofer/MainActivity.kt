@@ -15,6 +15,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -156,12 +157,15 @@ class MainActivity : ComponentActivity() {
                         isMocking = isMocking || simState.isSimulating,
                         simState = simState,
                         onGrantMockViaRoot = {
-                            val success = RootHelper.grantMockLocationPermissionViaRoot(packageName)
-                            Toast.makeText(
-                                this,
-                                if (success) "Root 授权模拟位置成功！" else "Root 执行失败，请检查授权管理器",
-                                Toast.LENGTH_SHORT
-                            ).show()
+                            lifecycleScope.launch {
+                                Toast.makeText(this@MainActivity, "正在请求 Root 授权注入...", Toast.LENGTH_SHORT).show()
+                                val success = RootHelper.grantMockLocationPermissionViaRootAsync(packageName)
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    if (success) "Root 授权模拟位置成功！" else "Root 执行失败，请检查授权管理器",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
                         },
                         onStartMock = { lat, lon, isGcj02 ->
                             val finalCoords = if (isGcj02) {

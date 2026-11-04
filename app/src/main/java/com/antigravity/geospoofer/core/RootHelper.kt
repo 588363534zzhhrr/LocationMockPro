@@ -47,13 +47,11 @@ object RootHelper {
     data class CommandResult(val success: Boolean, val output: String, val error: String)
 
     /**
-     * 通过 su 执行命令
+     * 通过 su 执行命令（具备双向流并发读取与防管道死锁保护，支持超时熔断）
      */
-    fun executeRootCommand(command: String): CommandResult {
+    fun executeRootCommand(command: String, timeoutMs: Long = 8000L): CommandResult {
         var process: java.lang.Process? = null
         var os: DataOutputStream? = null
-        var reader: BufferedReader? = null
-        var errorReader: BufferedReader? = null
 
         return try {
             process = Runtime.getRuntime().exec("su")
@@ -61,23 +59,67 @@ object RootHelper {
             os.writeBytes("$command\nexit\n")
             os.flush()
 
-            val exitCode = process.waitFor()
-            reader = BufferedReader(InputStreamReader(process.inputStream))
-            errorReader = BufferedReader(InputStreamReader(process.errorStream))
+            val stdoutBuilder = StringBuilder()
+            val stderrBuilder = StringBuilder()
 
-            val output = reader.readText()
-            val error = errorReader.readText()
+            // 并发读取标准输出与错误流，杜绝底层缓冲区写满导致父子进程互相等待的死锁悲剧
+            val outThread = Thread {
+                try {
+                    BufferedReader(InputStreamReader(process.inputStream)).use { r ->
+                        var line: String?
+                        while (r.readLine().also { line = it } != null) {
+                            if (stdoutBuilder.isNotEmpty()) stdoutBuilder.append("\n")
+                            stdoutBuilder.append(line)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
 
-            CommandResult(exitCode == 0, output, error)
+            val errThread = Thread {
+                try {
+                    BufferedReader(InputStreamReader(process.errorStream)).use { r ->
+                        var line: String?
+                        while (r.readLine().also { line = it } != null) {
+                            if (stderrBuilder.isNotEmpty()) stderrBuilder.append("\n")
+                            stderrBuilder.append(line)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+
+            outThread.start()
+            errThread.start()
+
+            outThread.join(timeoutMs)
+            errThread.join(timeoutMs)
+
+            val exitCode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                if (process.waitFor(1500L, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                    process.exitValue()
+                } else {
+                    process.destroyForcibly()
+                    -1
+                }
+            } else {
+                process.waitFor()
+            }
+
+            CommandResult(exitCode == 0, stdoutBuilder.toString(), stderrBuilder.toString())
         } catch (e: Exception) {
             CommandResult(false, "", e.message ?: "Execution failed")
         } finally {
             try { os?.close() } catch (_: Exception) {}
-            try { reader?.close() } catch (_: Exception) {}
-            try { errorReader?.close() } catch (_: Exception) {}
             process?.destroy()
         }
     }
+
+    /**
+     * 协程异步调用 Root 执行命令
+     */
+    suspend fun executeRootCommandAsync(command: String, timeoutMs: Long = 8000L): CommandResult =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            executeRootCommand(command, timeoutMs)
+        }
 
     /**
      * 利用 Root 权限自动授予 MOCK_LOCATION 权限
@@ -88,6 +130,11 @@ object RootHelper {
         val result = executeRootCommand(cmd)
         return result.success
     }
+
+    suspend fun grantMockLocationPermissionViaRootAsync(packageName: String): Boolean =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            grantMockLocationPermissionViaRoot(packageName)
+        }
 
     /**
      * 检查是否具备系统级 INSTALL_LOCATION_PROVIDER 权限

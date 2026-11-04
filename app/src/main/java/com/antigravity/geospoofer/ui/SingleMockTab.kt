@@ -43,6 +43,15 @@ fun SingleMockTab(
     var lonText by remember { mutableStateOf("116.397470") }
     var coordSystemSingle by remember { mutableStateOf("GCJ02") }
 
+    // 页面初始化或切换 Tab 导致 WebView 重建时，自动重放恢复当前单点标记与底图视角
+    LaunchedEffect(mapController.isReady) {
+        if (mapController.isReady) {
+            val lat = latText.toDoubleOrNull() ?: 39.908823
+            val lon = lonText.toDoubleOrNull() ?: 116.397470
+            mapController.setSinglePoint(lat, lon)
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
