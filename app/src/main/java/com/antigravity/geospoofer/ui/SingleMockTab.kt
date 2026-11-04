@@ -15,6 +15,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,10 +46,10 @@ fun SingleMockTab(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // 🗺️ 可视化交互地图卡片
+        // 可视化交互地图卡片 (Apple Maps Style)
         InteractiveMapCard(
             controller = mapController,
             mode = "single",
@@ -59,48 +61,39 @@ fun SingleMockTab(
             onToggleExpand = onToggleMapExpand
         )
 
-        // ⭐ 常用打卡收藏卡片
+        // 常用打卡地点收藏
         GlassCard(
-            contentPadding = PaddingValues(14.dp)
+            contentPadding = PaddingValues(16.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.BookmarkBorder,
-                        contentDescription = null,
-                        tint = TechAmberLight,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = "常用打卡地点收藏",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary
-                    )
+            TechSectionHeader(
+                title = "常用地点",
+                icon = Icons.Default.BookmarkBorder,
+                iconTint = TextPrimary,
+                badgeText = if (favoritePlaces.isNotEmpty()) "${favoritePlaces.size}" else null,
+                actionSlot = {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = AppleCardSubtle,
+                        modifier = Modifier.clickable {
+                            val lat = latText.toDoubleOrNull() ?: 39.908823
+                            val lon = lonText.toDoubleOrNull() ?: 116.397470
+                            onOpenAddFavoriteDialog(lat, lon)
+                        }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, tint = AppleBlue, modifier = Modifier.size(13.dp))
+                            Text("收藏当前点", fontSize = 11.sp, color = AppleBlue, fontWeight = FontWeight.Medium)
+                        }
+                    }
                 }
-                TextButton(
-                    onClick = {
-                        val lat = latText.toDoubleOrNull() ?: 39.908823
-                        val lon = lonText.toDoubleOrNull() ?: 116.397470
-                        onOpenAddFavoriteDialog(lat, lon)
-                    },
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text("收藏当前点", fontSize = 11.sp, color = TechBlueLight)
-                }
-            }
+            )
 
             if (favoritePlaces.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -108,8 +101,8 @@ fun SingleMockTab(
                     items(favoritePlaces) { place ->
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = DarkInputBg,
-                            border = BorderStroke(1.dp, DarkDivider),
+                            color = AppleInputBg,
+                            border = BorderStroke(0.5.dp, AppleBorder),
                             modifier = Modifier.clickable {
                                 latText = "%.6f".format(place.latitude)
                                 lonText = "%.6f".format(place.longitude)
@@ -123,24 +116,24 @@ fun SingleMockTab(
                             }
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Surface(
-                                    color = TechBlue.copy(alpha = 0.2f),
+                                    color = AppleCardSubtle,
                                     shape = RoundedCornerShape(4.dp)
                                 ) {
                                     Text(
-                                        place.tag,
+                                        text = place.tag,
                                         fontSize = 10.sp,
-                                        color = TechBlueLight,
-                                        fontWeight = FontWeight.SemiBold,
+                                        color = TextSecondary,
+                                        fontWeight = FontWeight.Medium,
                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                                     )
                                 }
                                 Text(
-                                    place.name,
+                                    text = place.name,
                                     fontSize = 12.sp,
                                     color = TextPrimary,
                                     fontWeight = FontWeight.Medium
@@ -150,13 +143,13 @@ fun SingleMockTab(
                                         val updated = FavoritePlacesHelper.deleteFavorite(context, place.id)
                                         onUpdateFavoritePlaces(updated)
                                     },
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(18.dp)
                                 ) {
                                     Icon(
                                         Icons.Default.Close,
                                         contentDescription = "删除",
                                         tint = TextTertiary,
-                                        modifier = Modifier.size(11.dp)
+                                        modifier = Modifier.size(12.dp)
                                     )
                                 }
                             }
@@ -166,21 +159,20 @@ fun SingleMockTab(
             }
         }
 
-        // 📍 目标坐标与系统校准卡片
+        // 目标坐标与系统校准卡片
         GlassCard(
-            contentPadding = PaddingValues(14.dp)
+            contentPadding = PaddingValues(16.dp)
         ) {
-            Text(
-                text = "目标坐标设置",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = TextPrimary
+            TechSectionHeader(
+                title = "目标坐标",
+                icon = Icons.Default.MyLocation,
+                iconTint = TextPrimary
             )
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 OutlinedTextField(
                     value = latText,
@@ -195,12 +187,19 @@ fun SingleMockTab(
                     label = { Text("纬度 Latitude", fontSize = 11.sp) },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
+                    textStyle = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    ),
+                    shape = RoundedCornerShape(10.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = DarkInputBg,
-                        unfocusedContainerColor = DarkInputBg,
-                        focusedBorderColor = TechBlue,
-                        unfocusedBorderColor = DarkCardBorder,
-                        focusedLabelColor = TechBlueLight,
+                        focusedContainerColor = AppleInputBg,
+                        unfocusedContainerColor = AppleInputBg,
+                        focusedBorderColor = AppleBlue,
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedLabelColor = AppleBlue,
                         unfocusedLabelColor = TextSecondary
                     )
                 )
@@ -218,63 +217,61 @@ fun SingleMockTab(
                     label = { Text("经度 Longitude", fontSize = 11.sp) },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
+                    textStyle = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    ),
+                    shape = RoundedCornerShape(10.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = DarkInputBg,
-                        unfocusedContainerColor = DarkInputBg,
-                        focusedBorderColor = TechBlue,
-                        unfocusedBorderColor = DarkCardBorder,
-                        focusedLabelColor = TechBlueLight,
+                        focusedContainerColor = AppleInputBg,
+                        unfocusedContainerColor = AppleInputBg,
+                        focusedBorderColor = AppleBlue,
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedLabelColor = AppleBlue,
                         unfocusedLabelColor = TextSecondary
                     )
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(14.dp))
             Text(
-                text = "坐标系标准 (自动适配偏转算法):",
+                text = "坐标系标准",
                 fontSize = 11.sp,
                 color = TextSecondary,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                letterSpacing = (-0.1).sp
             )
             Spacer(modifier = Modifier.height(6.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 val systems = listOf(
-                    Triple("GCJ02", "高德/腾讯 (GCJ-02)", "主流国产地图标定"),
-                    Triple("WGS84", "国际 GPS (WGS-84)", "原生硬件无偏转"),
-                    Triple("BD09", "百度地图 (BD-09)", "百度二阶偏转")
+                    Pair("GCJ02", "高德/腾讯 (GCJ-02)"),
+                    Pair("WGS84", "国际 GPS (WGS-84)"),
+                    Pair("BD09", "百度地图 (BD-09)")
                 )
-                systems.forEach { (code, name, _) ->
+                systems.forEach { (code, name) ->
                     val isSelected = coordSystemSingle == code
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (isSelected) TechBlue.copy(alpha = 0.2f) else DarkInputBg,
-                        border = BorderStroke(1.dp, if (isSelected) TechBlue else DarkCardBorder),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { coordSystemSingle = code }
-                    ) {
-                        Text(
-                            text = name,
-                            fontSize = 10.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) TechBlueLight else TextSecondary,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            modifier = Modifier.padding(vertical = 7.dp, horizontal = 2.dp)
-                        )
-                    }
+                    TechSelectorChip(
+                        text = name,
+                        isSelected = isSelected,
+                        onClick = { coordSystemSingle = code },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(14.dp))
             Text(
-                text = "快捷城市预设:",
+                text = "快捷城市",
                 fontSize = 11.sp,
                 color = TextSecondary,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                letterSpacing = (-0.1).sp
             )
             Spacer(modifier = Modifier.height(6.dp))
 
@@ -292,33 +289,22 @@ fun SingleMockTab(
             ) {
                 cities.forEach { (cityName, coords) ->
                     val isCitySelected = latText == "%.6f".format(coords.first) && lonText == "%.6f".format(coords.second)
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (isCitySelected) TechCyan.copy(alpha = 0.2f) else DarkInputBg,
-                        border = BorderStroke(1.dp, if (isCitySelected) TechCyan else DarkCardBorder),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable {
-                                latText = "%.6f".format(coords.first)
-                                lonText = "%.6f".format(coords.second)
-                                mapController.setSinglePoint(coords.first, coords.second)
-                                mapController.flyToLocation(coords.first, coords.second)
-                            }
-                    ) {
-                        Text(
-                            text = cityName,
-                            fontSize = 11.sp,
-                            fontWeight = if (isCitySelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isCitySelected) TechCyanLight else TextSecondary,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            modifier = Modifier.padding(vertical = 6.dp)
-                        )
-                    }
+                    TechSelectorChip(
+                        text = cityName,
+                        isSelected = isCitySelected,
+                        onClick = {
+                            latText = "%.6f".format(coords.first)
+                            lonText = "%.6f".format(coords.second)
+                            mapController.setSinglePoint(coords.first, coords.second)
+                            mapController.flyToLocation(coords.first, coords.second)
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }
 
-        // 🚀 主执行操作按钮
+        // 主执行操作按钮
         PrimaryActionButton(
             text = if (isMocking) "停止定位模拟" else "开始定位模拟",
             icon = if (isMocking) Icons.Default.Stop else Icons.Default.PlayArrow,

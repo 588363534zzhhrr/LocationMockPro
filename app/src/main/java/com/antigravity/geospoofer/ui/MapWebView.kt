@@ -160,18 +160,20 @@ fun InteractiveMapCard(
     onToggleExpand: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    Card(
+    androidx.compose.material3.Surface(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
             .animateContentSize(),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        shape = RoundedCornerShape(18.dp),
+        color = com.antigravity.geospoofer.ui.theme.DarkCard,
+        border = androidx.compose.foundation.BorderStroke(1.dp, com.antigravity.geospoofer.ui.theme.DarkCardBorder),
+        shadowElevation = 4.dp
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(18.dp))
         ) {
             AndroidView(
                 factory = { context ->

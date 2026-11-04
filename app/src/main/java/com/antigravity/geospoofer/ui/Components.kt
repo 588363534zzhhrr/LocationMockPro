@@ -1,7 +1,7 @@
 package com.antigravity.geospoofer.ui
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -14,28 +14,27 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.antigravity.geospoofer.ui.theme.*
 
 /**
- * 极客暗黑风高质感玻璃卡片
+ * 苹果风格 Inset Grouped 卡片 (iOS Inset Grouped Card)
+ * 采用深色模式系统灰色 SystemGray6，配备超微发丝线边框
  */
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 16.dp,
-    containerColor: Color = DarkCard,
-    borderColor: Color = DarkCardBorder,
-    borderWidth: Dp = 1.dp,
+    containerColor: Color = AppleCard,
+    borderColor: Color = AppleBorder,
+    borderWidth: Dp = 0.5.dp,
     contentPadding: PaddingValues = PaddingValues(16.dp),
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -55,7 +54,68 @@ fun GlassCard(
 }
 
 /**
- * 动态呼吸脉冲状态指示胶囊 (Status Pill)
+ * 苹果风格模块分组标题 (iOS Group Header)
+ * 极简、克制、富有层次
+ */
+@Composable
+fun TechSectionHeader(
+    title: String,
+    icon: ImageVector? = null,
+    iconTint: Color = AppleBlue,
+    badgeText: String? = null,
+    badgeColor: Color = TextSecondary,
+    actionSlot: @Composable (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.weight(1f, fill = false)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(17.dp)
+                )
+            }
+            Text(
+                text = title,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary,
+                letterSpacing = (-0.2).sp
+            )
+            if (badgeText != null) {
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = AppleCardSubtle
+                ) {
+                    Text(
+                        text = badgeText,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextSecondary,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+        }
+        if (actionSlot != null) {
+            actionSlot()
+        }
+    }
+}
+
+/**
+ * 苹果灵动岛风格状态胶囊 (Dynamic Island Pill)
+ * 克制、纯净，以细微状态圆点提示运行状态
  */
 @Composable
 fun StatusPill(
@@ -64,52 +124,43 @@ fun StatusPill(
     isPaused: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val alphaAnim by infiniteTransition.animateFloat(
-        initialValue = 0.4f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "alpha"
-    )
-
-    val (bgColor, textColor, dotColor) = when {
-        isPaused -> Triple(StatusPauseBg, StatusPauseText, TechAmber)
-        isActive -> Triple(StatusActiveBg, StatusActiveText, TechEmerald)
-        else -> Triple(StatusIdleBg, StatusIdleText, Color(0xFF64748B))
+    val dotColor = when {
+        isPaused -> AppleOrange
+        isActive -> AppleGreen
+        else -> TextTertiary
     }
 
     Surface(
-        color = bgColor,
+        color = AppleCardSubtle,
         shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, dotColor.copy(alpha = 0.35f)),
+        border = BorderStroke(0.5.dp, AppleBorder),
         modifier = modifier
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(7.dp)
+                    .size(6.dp)
                     .clip(CircleShape)
-                    .background(if (isActive && !isPaused) dotColor.copy(alpha = alphaAnim) else dotColor)
+                    .background(dotColor)
             )
             Text(
                 text = text,
-                color = textColor,
+                color = TextPrimary,
                 fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Medium,
+                letterSpacing = (-0.1).sp
             )
         }
     }
 }
 
 /**
- * 航空级仪表盘指标磁贴 (Metric Tile)
+ * 苹果健身/健康风格指标磁贴 (Apple Health / Fitness Tile)
+ * 极简留白、高对比大数字排版
  */
 @Composable
 fun MetricTile(
@@ -117,52 +168,55 @@ fun MetricTile(
     label: String,
     value: String,
     unit: String,
-    accentColor: Color = TechBlueLight,
+    accentColor: Color = AppleBlue,
     modifier: Modifier = Modifier
 ) {
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
-        color = DarkInputBg,
-        border = BorderStroke(1.dp, DarkDivider)
+        color = AppleInputBg,
+        border = BorderStroke(0.5.dp, AppleBorder)
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = accentColor,
+                    tint = TextSecondary,
                     modifier = Modifier.size(13.dp)
                 )
                 Text(
-                    text = label,
+                    text = label.uppercase(),
                     fontSize = 10.sp,
                     color = TextSecondary,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.5.sp
                 )
             }
             Row(
                 verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                horizontalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 Text(
                     text = value,
-                    fontSize = 16.sp,
+                    fontSize = 19.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary,
-                    fontFamily = FontFamily.Monospace
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = (-0.5).sp
                 )
                 Text(
                     text = unit,
-                    fontSize = 10.sp,
-                    color = TextTertiary,
-                    modifier = Modifier.padding(bottom = 1.dp)
+                    fontSize = 11.sp,
+                    color = TextSecondary,
+                    fontWeight = FontWeight.Normal,
+                    modifier = Modifier.padding(bottom = 2.dp)
                 )
             }
         }
@@ -170,7 +224,7 @@ fun MetricTile(
 }
 
 /**
- * 极简设置切换行 (Setting Row)
+ * 苹果原生风格设置切换行 (iOS Settings Row)
  */
 @Composable
 fun SettingToggleRow(
@@ -179,25 +233,25 @@ fun SettingToggleRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     icon: ImageVector? = null,
-    iconColor: Color = TechBlue,
+    iconColor: Color = AppleBlue,
     modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clickable { onCheckedChange(!checked) }
-            .padding(vertical = 4.dp),
+            .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (icon != null) {
                 Surface(
-                    color = iconColor.copy(alpha = 0.15f),
+                    color = iconColor.copy(alpha = 0.12f),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.size(32.dp)
                 ) {
@@ -215,10 +269,12 @@ fun SettingToggleRow(
                 Text(
                     text = title,
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary
+                    fontWeight = FontWeight.Medium,
+                    color = TextPrimary,
+                    letterSpacing = (-0.1).sp
                 )
                 if (description.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = description,
                         fontSize = 11.sp,
@@ -228,23 +284,23 @@ fun SettingToggleRow(
                 }
             }
         }
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(10.dp))
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
-                checkedTrackColor = TechBlue,
-                uncheckedThumbColor = Color(0xFF94A3B8),
-                uncheckedTrackColor = DarkCardSubtle,
-                uncheckedBorderColor = DarkCardBorder
+                checkedTrackColor = AppleGreen,
+                uncheckedThumbColor = Color(0xFFE5E5EA),
+                uncheckedTrackColor = Color(0xFF39393D),
+                uncheckedBorderColor = Color.Transparent
             )
         )
     }
 }
 
 /**
- * 现代高质感分段导航栏 (Segmented Nav Tabs)
+ * 苹果原生分段选择控制器 (iOS Segmented Control)
  */
 @Composable
 fun ModernSegmentedTabs(
@@ -257,27 +313,27 @@ fun ModernSegmentedTabs(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .height(44.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = DarkInputBg,
-        border = BorderStroke(1.dp, DarkCardBorder)
+            .height(42.dp),
+        shape = RoundedCornerShape(10.dp),
+        color = AppleCardSubtle,
+        border = BorderStroke(0.5.dp, AppleBorder)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(3.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                .padding(2.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             tabs.forEachIndexed { index, title ->
                 val isSelected = selectedTabIndex == index
                 val animBg by animateColorAsState(
-                    targetValue = if (isSelected) TechBlue else Color.Transparent,
-                    animationSpec = tween(200),
+                    targetValue = if (isSelected) Color(0xFF636366) else Color.Transparent,
+                    animationSpec = tween(180),
                     label = "tabBg"
                 )
                 val animText by animateColorAsState(
                     targetValue = if (isSelected) Color.White else TextSecondary,
-                    animationSpec = tween(200),
+                    animationSpec = tween(180),
                     label = "tabText"
                 )
 
@@ -285,11 +341,12 @@ fun ModernSegmentedTabs(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
+                        .clip(RoundedCornerShape(8.dp))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) { onTabSelected(index) },
-                    shape = RoundedCornerShape(9.dp),
+                    shape = RoundedCornerShape(8.dp),
                     color = animBg
                 ) {
                     Row(
@@ -304,13 +361,14 @@ fun ModernSegmentedTabs(
                                 tint = animText,
                                 modifier = Modifier.size(15.dp)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(5.dp))
                         }
                         Text(
                             text = title,
                             fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = animText
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                            color = animText,
+                            letterSpacing = (-0.2).sp
                         )
                     }
                 }
@@ -320,7 +378,8 @@ fun ModernSegmentedTabs(
 }
 
 /**
- * 动作主控制大按钮 (Primary Action Button)
+ * 苹果风格主要操作按钮 (Apple System CTA Button)
+ * 启动时使用纯粹的 iOS System Blue，停止时为极简 Red Destructive
  */
 @Composable
 fun PrimaryActionButton(
@@ -330,39 +389,126 @@ fun PrimaryActionButton(
     isActive: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val containerColor = if (isActive) TechRose else TechEmerald
-    val brush = if (isActive) {
-        Brush.horizontalGradient(listOf(Color(0xFFE11D48), Color(0xFFBE123C)))
-    } else {
-        Brush.horizontalGradient(listOf(Color(0xFF059669), Color(0xFF047857)))
-    }
+    val containerColor = if (isActive) AppleRed else AppleBlue
 
-    Box(
+    Surface(
         modifier = modifier
             .fillMaxWidth()
-            .height(52.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(brush)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
+            .height(48.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = containerColor,
+        shadowElevation = 0.dp
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(20.dp)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = text,
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = (-0.2).sp
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 苹果风格功能小卡片 (Apple Action Tile)
+ * 灰阶统一底色，拒绝花哨杂色
+ */
+@Composable
+fun ToolboxTile(
+    icon: ImageVector,
+    title: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isLoading: Boolean = false,
+    accentColor: Color = TextPrimary
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = AppleInputBg,
+        border = BorderStroke(0.5.dp, AppleBorder),
+        modifier = modifier.clickable(enabled = !isLoading, onClick = onClick)
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    color = AppleBlue,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = TextPrimary,
+                    modifier = Modifier.size(17.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = title,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                color = TextPrimary,
+                textAlign = TextAlign.Center,
+                letterSpacing = (-0.1).sp
             )
-            Spacer(modifier = Modifier.width(8.dp))
+        }
+    }
+}
+
+/**
+ * 苹果胶囊选择器 (iOS Picker Chip)
+ * 选中态为 System Blue 或高对比度浅灰，未选中态为静音深灰
+ */
+@Composable
+fun TechSelectorChip(
+    text: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    activeColor: Color = AppleBlue,
+    activeTextColor: Color = Color.White
+) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = if (isSelected) AppleBlue else AppleInputBg,
+        border = if (isSelected) null else BorderStroke(0.5.dp, AppleBorder),
+        modifier = modifier.clickable(onClick = onClick)
+    ) {
+        Box(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+            contentAlignment = Alignment.Center
+        ) {
             Text(
                 text = text,
-                color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.5.sp
+                fontSize = 11.sp,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (isSelected) Color.White else TextSecondary,
+                textAlign = TextAlign.Center,
+                letterSpacing = (-0.1).sp
             )
         }
     }

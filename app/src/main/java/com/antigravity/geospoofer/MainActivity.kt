@@ -20,6 +20,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -28,6 +29,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -523,36 +525,35 @@ fun MainScreen(
             .fillMaxSize()
             .background(DarkBg)
     ) {
-        // ==================== 顶部航电级品牌导航栏 ====================
+        // ==================== 苹果风格简约导航栏 ====================
         Surface(
-            color = DarkCard,
-            border = BorderStroke(1.dp, DarkDivider),
+            color = AppleCard,
+            border = BorderStroke(0.5.dp, AppleBorder),
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // 左侧品牌标识与版本
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = TechBlue.copy(alpha = 0.2f),
-                        border = BorderStroke(1.dp, TechBlue.copy(alpha = 0.4f)),
-                        modifier = Modifier.size(36.dp)
+                        shape = CircleShape,
+                        color = AppleBlue.copy(alpha = 0.15f),
+                        modifier = Modifier.size(34.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = Icons.Default.GpsFixed,
+                                imageVector = Icons.Default.NearMe,
                                 contentDescription = null,
-                                tint = TechCyanLight,
-                                modifier = Modifier.size(20.dp)
+                                tint = AppleBlue,
+                                modifier = Modifier.size(17.dp)
                             )
                         }
                     }
@@ -563,30 +564,30 @@ fun MainScreen(
                         ) {
                             Text(
                                 text = "LocationMock Pro",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary,
+                                letterSpacing = (-0.3).sp
                             )
                             Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = DarkCardSubtle,
-                                border = BorderStroke(1.dp, DarkCardBorder),
+                                shape = RoundedCornerShape(6.dp),
+                                color = AppleCardSubtle,
                                 modifier = Modifier.clickable { triggerUpdateCheck(true) }
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(3.dp),
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.5.dp)
                                 ) {
                                     Text(
                                         text = "v${UpdateManager.getCurrentVersionName(context)}",
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = TechBlueLight
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = TextSecondary
                                     )
                                     if (isCheckingUpdate) {
                                         CircularProgressIndicator(
-                                            color = TechCyanLight,
+                                            color = AppleBlue,
                                             modifier = Modifier.size(8.dp),
                                             strokeWidth = 1.5.dp
                                         )
@@ -594,18 +595,30 @@ fun MainScreen(
                                 }
                             }
                         }
-                        Text(
-                            text = if (isRooted) "LSPosed底层免杀已激活" else "极客高拟真物理引擎",
-                            fontSize = 10.sp,
-                            color = if (isRooted) TechEmeraldLight else TextSecondary
-                        )
+                        Spacer(modifier = Modifier.height(1.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(5.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isRooted) AppleGreen else TextTertiary)
+                            )
+                            Text(
+                                text = if (isRooted) "底层免杀保护已就绪" else "标准模拟模式",
+                                fontSize = 11.sp,
+                                color = TextSecondary
+                            )
+                        }
                     }
                 }
 
                 // 右侧运行状态指示与动作快捷键
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     StatusPill(
                         text = when {
@@ -618,33 +631,43 @@ fun MainScreen(
                         isPaused = simState.isPaused
                     )
 
-                    // 悬浮窗开关
-                    IconButton(
-                        onClick = {
-                            joystickEnabled = !joystickEnabled
-                            onToggleJoystick(joystickEnabled)
-                        },
-                        modifier = Modifier.size(32.dp)
+                    // 悬浮窗开关按钮
+                    Surface(
+                        shape = CircleShape,
+                        color = if (joystickEnabled) AppleBlue else AppleCardSubtle,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clickable {
+                                joystickEnabled = !joystickEnabled
+                                onToggleJoystick(joystickEnabled)
+                            }
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.FilterFrames,
-                            contentDescription = "悬浮窗",
-                            tint = if (joystickEnabled) TechCyanLight else TextSecondary,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.FilterFrames,
+                                contentDescription = "悬浮窗",
+                                tint = if (joystickEnabled) Color.White else TextSecondary,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
                     }
 
-                    // 体检报告
-                    IconButton(
-                        onClick = { showAuditDialog = true },
-                        modifier = Modifier.size(32.dp)
+                    // 体检报告按钮
+                    Surface(
+                        shape = CircleShape,
+                        color = AppleCardSubtle,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clickable { showAuditDialog = true }
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Shield,
-                            contentDescription = "安全体检",
-                            tint = TechEmeraldLight,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Shield,
+                                contentDescription = "安全体检",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
                     }
                 }
             }

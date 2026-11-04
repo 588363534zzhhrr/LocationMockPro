@@ -111,33 +111,34 @@ fun UpdateDialog(
             }
         },
         containerColor = DarkCard,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         title = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(10.dp),
                     color = TechBlue.copy(alpha = 0.2f),
-                    border = BorderStroke(1.dp, TechBlue.copy(alpha = 0.4f))
+                    border = BorderStroke(1.dp, TechCyanLight.copy(alpha = 0.4f))
                 ) {
                     Icon(
                         imageVector = Icons.Default.CloudDownload,
                         contentDescription = null,
                         tint = TechCyanLight,
                         modifier = Modifier
-                            .padding(6.dp)
+                            .padding(7.dp)
                             .size(20.dp)
                     )
                 }
                 Column {
                     Text(
                         text = "发现新版本 ${updateInfo.versionName}",
-                        fontSize = 17.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "LocationMockPro 自动更新",
                         fontSize = 11.sp,
@@ -160,7 +161,7 @@ fun UpdateDialog(
                 ) {
                     if (updateInfo.fileSize > 0) {
                         Surface(
-                            shape = RoundedCornerShape(4.dp),
+                            shape = RoundedCornerShape(6.dp),
                             color = DarkCardSubtle,
                             border = BorderStroke(1.dp, DarkCardBorder)
                         ) {
@@ -168,23 +169,31 @@ fun UpdateDialog(
                                 text = String.format(Locale.US, "%.2f MB", updateInfo.fileSize / 1024.0 / 1024.0),
                                 fontSize = 11.sp,
                                 color = TechCyanLight,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                             )
                         }
                     }
 
                     if (isRooted) {
                         Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = TechEmeraldDark.copy(alpha = 0.4f),
-                            border = BorderStroke(1.dp, TechEmerald.copy(alpha = 0.4f))
+                            shape = RoundedCornerShape(6.dp),
+                            color = TechEmeraldDark.copy(alpha = 0.5f),
+                            border = BorderStroke(1.dp, TechEmerald.copy(alpha = 0.5f))
                         ) {
-                            Text(
-                                text = "⚡ Root 静默秒级更新",
-                                fontSize = 11.sp,
-                                color = TechEmeraldLight,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                            ) {
+                                Icon(Icons.Default.Bolt, contentDescription = null, tint = TechEmeraldLight, modifier = Modifier.size(13.dp))
+                                Text(
+                                    text = "Root 静默秒级更新",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TechEmeraldLight
+                                )
+                            }
                         }
                     }
                 }
