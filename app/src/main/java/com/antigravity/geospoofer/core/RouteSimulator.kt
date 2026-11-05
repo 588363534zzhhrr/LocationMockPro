@@ -124,6 +124,7 @@ class RouteSimulator(
     ) {
         if (waypoints.size < 2) return
         stopSimulation()
+        LocationStateProvider.resetSimulationSession()
         isPaused = false
         this.routeMode = mode
         this.targetDistanceMeters = targetMeters
@@ -284,10 +285,14 @@ class RouteSimulator(
                         // 跨进程同步计步器至 LocationStateProvider（供 LSPosed 模块直接注入目标 App 传感器）
                         LocationStateProvider.updateSteps(calculatedSteps, naturalCadence)
 
-                        // 6. 海拔与爬升计算
+                        // 6. 海拔与爬升计算（自然多频段平缓地理微地形模型，告别 350m 机械过山车正弦波）
                         var currentElevation = 35.0
                         if (enableTerrainElevation) {
-                            val elevationDelta = sin(overallCumulativeDistance / 350.0 * 2.0 * PI) * 14.0 + sin(overallCumulativeDistance / 75.0 * 2.0 * PI) * 3.5
+                            // 宏观平缓坡道 (波长 1800m, 振幅 2.2m) + 中观自然起伏 (波长 650m, 振幅 0.7m) + 微地表纹理 (波长 160m, 振幅 0.2m)
+                            val macroSlope = sin(overallCumulativeDistance / 1800.0 * 2.0 * PI) * 2.2
+                            val mesoSlope = sin(overallCumulativeDistance / 650.0 * 2.0 * PI) * 0.7
+                            val microTexture = sin(overallCumulativeDistance / 160.0 * 2.0 * PI) * 0.2
+                            val elevationDelta = macroSlope + mesoSlope + microTexture
                             currentElevation = (35.0 + elevationDelta).coerceAtLeast(4.0)
                             val diff = currentElevation - lastElevation
                             if (diff > 0.02) cumulativeElevationGain += diff
@@ -424,6 +429,7 @@ class RouteSimulator(
     fun stopSimulation() {
         simulationJob?.cancel()
         simulationJob = null
+        LocationStateProvider.resetSimulationSession()
         isPaused = false
         _simulationState.value = _simulationState.value.copy(
             isSimulating = false,

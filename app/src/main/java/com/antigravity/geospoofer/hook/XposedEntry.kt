@@ -62,6 +62,7 @@ class XposedEntry : IXposedHookLoadPackage {
     // 计步器开机硬件真实步数基准值（记录首次硬件回调，默认 12580f 优雅垫底）
     @Volatile private var baseHardwareSteps: Float = 12580f
     @Volatile private var hasCapturedRealHardwareStep: Boolean = false
+    @Volatile private var lastDispatchedStepCount: Long = -1L
 
     // 活跃 Listener 调度封装器与调度器线程
     private val activeDispatchers = ConcurrentHashMap<Int, ListenerDispatcher>()
@@ -456,14 +457,16 @@ class XposedEntry : IXposedHookLoadPackage {
                             if (arg is Handler) targetHandler = arg
                         }
 
-                        if (sensor.type == Sensor.TYPE_STEP_COUNTER || sensor.type == Sensor.TYPE_STEP_DETECTOR) {
+                        if (sensor.type == Sensor.TYPE_STEP_COUNTER || sensor.type == Sensor.TYPE_STEP_DETECTOR || sensor.type == Sensor.TYPE_ACCELEROMETER) {
                             hookSensorEventListener(listener)
-                            activeStepListeners[System.identityHashCode(listener)] = StepListenerInfo(
-                                WeakReference(listener),
-                                sensor,
-                                targetHandler
-                            )
-                            ensureActiveDispatcher()
+                            if (sensor.type == Sensor.TYPE_STEP_COUNTER || sensor.type == Sensor.TYPE_STEP_DETECTOR) {
+                                activeStepListeners[System.identityHashCode(listener)] = StepListenerInfo(
+                                    WeakReference(listener),
+                                    sensor,
+                                    targetHandler
+                                )
+                                ensureActiveDispatcher()
+                            }
                         }
                     }
                 })
@@ -566,10 +569,14 @@ class XposedEntry : IXposedHookLoadPackage {
                     if (!state.isMocking) return
 
                     if (event.sensor.type == Sensor.TYPE_STEP_COUNTER) {
-                        // 记录首个硬件有效步数作为基准值
+                        val spoofedVal = baseHardwareSteps + state.totalSteps.toFloat()
+                        // 记录首个硬件有效步数作为基准值（严防自循环抓取合成值引发级联暴涨）
                         if (!hasCapturedRealHardwareStep && event.values.isNotEmpty() && event.values[0] > 0f) {
-                            baseHardwareSteps = event.values[0]
-                            hasCapturedRealHardwareStep = true
+                            val rawVal = event.values[0]
+                            if (rawVal != spoofedVal && rawVal < 1000000f) {
+                                baseHardwareSteps = rawVal
+                                hasCapturedRealHardwareStep = true
+                            }
                         }
                         // 注入基准值 + 模拟位移累加步数（严禁覆写为从 0 开始）
                         if (event.values.isNotEmpty()) {
@@ -578,6 +585,22 @@ class XposedEntry : IXposedHookLoadPackage {
                     } else if (event.sensor.type == Sensor.TYPE_STEP_DETECTOR) {
                         if (event.values.isNotEmpty()) {
                             event.values[0] = 1.0f
+                        }
+                    } else if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
+                        // 当目标运动 App 读取加速度计做实时步频分析与垂直振荡滤波时
+                        // 注入符合真实人体奔跑生理节拍的平滑三轴加速度波形，彻底消除 471 鬼畜步频与断续空图
+                        if (state.speed > 0.4f && state.cadenceSpm > 0 && event.values.size >= 3) {
+                            val cadence = state.cadenceSpm.coerceIn(110, 205)
+                            val freqHz = cadence / 60.0
+                            val tSec = (SystemClock.elapsedRealtimeNanos() % 100_000_000_000L) / 1_000_000_000.0
+                            val phase = 2.0 * Math.PI * freqHz * tSec
+
+                            // Y 轴主垂直奔跑冲击波 (9.8m/s² 重力基底 + 3.2m/s² 垂直振荡)
+                            event.values[1] = (9.80665 + Math.sin(phase) * 3.2).toFloat()
+                            // X 轴左右迈步侧摆 (0.5m/s², 半频)
+                            event.values[0] = (Math.sin(phase * 0.5) * 0.5).toFloat()
+                            // Z 轴前后微幅倾角
+                            event.values[2] = (Math.cos(phase) * 0.8).toFloat()
                         }
                     }
                 }
@@ -1002,7 +1025,10 @@ class XposedEntry : IXposedHookLoadPackage {
                             }
 
                             // 计步器主动仿真事件分发（为无物理计步器的模拟器与静止真机主动推送步数事件）
-                            if (activeStepListeners.isNotEmpty() && state.totalSteps > 0) {
+                            if (activeStepListeners.isNotEmpty() && state.totalSteps > 0 && (state.totalSteps != lastDispatchedStepCount || state.speed > 0.35f)) {
+                                val stepDelta = if (lastDispatchedStepCount >= 0) (state.totalSteps - lastDispatchedStepCount).coerceIn(1L, 4L).toInt() else 1
+                                lastDispatchedStepCount = state.totalSteps
+
                                 val activeStepEntries = activeStepListeners.entries.toList()
                                 for (entry in activeStepEntries) {
                                     val info = entry.value
@@ -1011,16 +1037,26 @@ class XposedEntry : IXposedHookLoadPackage {
                                         activeStepListeners.remove(entry.key)
                                         continue
                                     }
-                                    val stepVal = if (info.sensor.type == Sensor.TYPE_STEP_COUNTER) {
-                                        baseHardwareSteps + state.totalSteps.toFloat()
-                                    } else {
-                                        1.0f
-                                    }
-                                    val event = createFakeSensorEvent(info.sensor, stepVal)
-                                    if (event != null) {
+                                    if (info.sensor.type == Sensor.TYPE_STEP_COUNTER) {
+                                        val stepVal = baseHardwareSteps + state.totalSteps.toFloat()
+                                        val event = createFakeSensorEvent(info.sensor, stepVal)
+                                        if (event != null) {
+                                            val h = info.targetHandler ?: mainHandler
+                                            h.post {
+                                                try { listener.onSensorChanged(event) } catch (_: Throwable) {}
+                                            }
+                                        }
+                                    } else if (info.sensor.type == Sensor.TYPE_STEP_DETECTOR) {
+                                        // 依据实际配速步数增量分发单步检测事件，严禁粗暴 1Hz 单步脉冲引发步频失真
                                         val h = info.targetHandler ?: mainHandler
-                                        h.post {
-                                            try { listener.onSensorChanged(event) } catch (_: Throwable) {}
+                                        for (subStep in 1..stepDelta) {
+                                            val subDelay = (subStep - 1) * (1000L / stepDelta)
+                                            h.postDelayed({
+                                                val ev = createFakeSensorEvent(info.sensor, 1.0f)
+                                                if (ev != null) {
+                                                    try { listener.onSensorChanged(ev) } catch (_: Throwable) {}
+                                                }
+                                            }, subDelay)
                                         }
                                     }
                                 }

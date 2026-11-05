@@ -200,6 +200,17 @@ class LocationStateProvider : ContentProvider() {
         }
 
         /**
+         * 重置模拟运动会话（清零本轮累积步数与配速，杜绝历史会话残留引发跳步）
+         */
+        fun resetSimulationSession() {
+            synchronized(stateLock) {
+                totalSteps = 0L
+                cadenceSpm = 0
+            }
+            persistStateToPrefs()
+        }
+
+        /**
          * 同步写入持久化 SharedPreferences 供 LSPosed 原生 XSharedPreferences 无缝兜底读取
          */
         private fun persistStateToPrefs() {

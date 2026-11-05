@@ -36,6 +36,10 @@ class MockLocationEngine(private val context: Context) {
     var enableNaturalJitter: Boolean = true
     var currentJitterProfile: JitterProfile = JitterProfile.OPEN_SKY
 
+    // Gauss-Markov / Ornstein-Uhlenbeck 平滑漂移状态变量（杜绝瞬时跳跃引发 2'16" 尖锐超速毛刺）
+    private var driftLatMeters: Double = 0.0
+    private var driftLonMeters: Double = 0.0
+
     // 最新生成的真实 NMEA-0183 语句（供底层监测与反判虚防御）
     var lastNmeaRmc: String = ""
         private set
@@ -191,16 +195,24 @@ class MockLocationEngine(private val context: Context) {
         var injectedLat = lat
         var injectedLon = lon
 
-        // 根据选定的物理环境预设注入逼真的高斯随机扰动
+        // 根据选定的物理环境预设注入逼真的低通 Gauss-Markov 平滑微抖动
         val profile = if (enableNaturalJitter) currentJitterProfile else JitterProfile.NONE
         if (profile.sigmaMeters > 0.0) {
-            // 纬度每度约 111320 米，经度每度约 111320 * cos(lat) 米
-            val latRad = Math.toRadians(lat)
-            val sigmaLatDeg = profile.sigmaMeters / 111320.0
-            val sigmaLonDeg = profile.sigmaMeters / (111320.0 * cos(latRad).coerceAtLeast(0.1))
+            // 一阶自回归平滑模型（自相关衰减系数 0.88，等效约 2 秒时间常数，杜绝帧间白噪声瞬移产生 2'16" 超速尖峰）
+            val alpha = 0.88
+            val noiseScale = sqrt(1.0 - alpha * alpha) * profile.sigmaMeters
+            driftLatMeters = driftLatMeters * alpha + random.nextGaussian() * noiseScale
+            driftLonMeters = driftLonMeters * alpha + random.nextGaussian() * noiseScale
 
-            injectedLat += random.nextGaussian() * sigmaLatDeg
-            injectedLon += random.nextGaussian() * sigmaLonDeg
+            val latRad = Math.toRadians(lat)
+            val sigmaLatDeg = driftLatMeters / 111320.0
+            val sigmaLonDeg = driftLonMeters / (111320.0 * cos(latRad).coerceAtLeast(0.1))
+
+            injectedLat += sigmaLatDeg
+            injectedLon += sigmaLonDeg
+        } else {
+            driftLatMeters = 0.0
+            driftLonMeters = 0.0
         }
 
         val nowNanos = SystemClock.elapsedRealtimeNanos()

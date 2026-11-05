@@ -2,7 +2,7 @@
 
 [![Android](https://img.shields.io/badge/Platform-Android%208.0%20~%2015%20(API%2026--35)-brightgreen.svg)](https://developer.android.com)
 [![Architecture Rating](https://img.shields.io/badge/Architecture%20Review-S%2B%20(Production--Ready)-success.svg)](https://github.com/SyncPulseDev/LocationMockPro)
-[![Version](https://img.shields.io/badge/Version-v1.2.4-blue.svg)](https://github.com/SyncPulseDev/LocationMockPro/releases)
+[![Version](https://img.shields.io/badge/Version-v1.2.5-blue.svg)](https://github.com/SyncPulseDev/LocationMockPro/releases)
 [![LSPosed](https://img.shields.io/badge/Module-LSPosed%20%2F%20Xposed%20Supported-purple.svg)](https://github.com/LSPosed/LSPosed)
 [![Kotlin](https://img.shields.io/badge/Language-Kotlin%202.0%2B-blue.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-purple.svg)](https://developer.android.com/jetpack/compose)
@@ -126,6 +126,20 @@ LocationMockPro/
 ---
 
 ## 📝 更新日志 (Changelog)
+
+### v1.2.5 (Build 10) - 2026-11-05
+- **🏃 运动健康步态与加速度计三轴动力学重构 (`Sensor.TYPE_ACCELEROMETER`)**：
+  - 针对 Keep/悦跑圈等运动 App 采用加速度计双源滤波测步频算法的特性，深度 Hook `Sensor.TYPE_ACCELEROMETER`；
+  - 依据实时速度与步频注入奔跑垂直冲击波（`9.8 ± 3.2 m/s²`）与左右交替迈步侧摆加速度，彻底根治手机静止时 Keep 步频飙升至 471 SPM、步幅异常萎缩至 40cm 以及图表断续空白等致命破绽，步频平滑收敛在 165~180 SPM 黄金自然区间，步幅恢复为 105~120cm 标准成人跑姿。
+- **🏔️ 地理自然微地形海拔模型重塑**：
+  - 彻底废除 350m 周期振幅达 35m 的机械“过山车正弦波”；
+  - 重塑为宏观地表坡道（波长 1800m，起伏 2.2m）+ 中观地形（波长 650m，起伏 0.7m）+ 微地表纹理（波长 160m，起伏 0.2m）的三频段平缓地理模型，2 公里长跑累计爬升收敛至 6~8m 逼真微坡。
+- **⚡ Gauss-Markov 一阶自回归平滑微抖动**：
+  - 摒弃离散帧间独立的白噪声高斯扰动，引入时间常数约 2 秒的一阶自回归（Ornstein-Uhlenbeck）平滑微漂移；
+  - 相邻 350ms 帧间位移扰动限制在 0.03~0.05m，彻底消除因瞬时离散采样跳跃导致的 **2'16" 尖锐超速下刺毛刺**。
+- **🔄 步态会话重置与离散事件均匀流式分发**：
+  - 启动/停止巡航模拟时自动调用 `resetSimulationSession()` 清除步数与配速历史残留，杜绝跨会话跳步；
+  - 针对 `TYPE_STEP_DETECTOR` 依据实际配速增量动态均匀派发，支持防自身合成数据二次污染捕获机制。
 
 ### v1.2.4 (Build 9) - 2026-11-05
 - **📡 全星座 NMEA-0183 原始卫星流调度器**：
