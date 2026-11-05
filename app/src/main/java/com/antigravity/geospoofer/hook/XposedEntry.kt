@@ -581,51 +581,54 @@ class XposedEntry : IXposedHookLoadPackage {
 
                     if (event.sensor.type == Sensor.TYPE_STEP_COUNTER) {
                         val spoofedVal = baseHardwareSteps + state.totalSteps.toFloat()
-                        // 记录首个硬件有效步数作为基准值（严防自循环抓取合成值引发级联暴涨）
+                        // 首次捕获并永久锁定硬件开机真实步数，严禁运行中基准突变引发千步跳跃与 533 SPM 风控拦截
                         if (!hasCapturedRealHardwareStep && event.values.isNotEmpty() && event.values[0] > 0f) {
                             val rawVal = event.values[0]
-                            if (rawVal != spoofedVal && rawVal < 1000000f) {
+                            if (rawVal != spoofedVal && rawVal < 2000000f) {
                                 baseHardwareSteps = rawVal
-                                hasCapturedRealHardwareStep = true
                             }
+                            hasCapturedRealHardwareStep = true
                         }
-                        // 注入基准值 + 模拟位移累加步数（严禁覆写为从 0 开始）
+                        // 注入基准值 + 模拟位移累加步数（严格单调递增，杜绝千步突跳）
                         if (event.values.isNotEmpty()) {
                             event.values[0] = baseHardwareSteps + state.totalSteps.toFloat()
                         }
                     } else if (event.sensor.type == Sensor.TYPE_STEP_DETECTOR) {
-                        // 物理防串扰：若宿主 App 已注册 STEP_COUNTER，拦截系统真实硬件 STEP_DETECTOR 回调，杜绝真实物理微动与虚拟步数叠加导致步频翻倍
-                        val hasCounter = activeStepListeners.values.any { it.sensor.type == Sensor.TYPE_STEP_COUNTER && it.isAlive() }
-                        if (hasCounter) {
-                            param.result = null
-                            return
-                        }
-                        if (event.values.isNotEmpty()) {
-                            event.values[0] = 1.0f
-                        }
+                        // 物理硬件微动全面屏蔽：在位移模拟激活期间，全面阻断真实硬件物理微动脉冲，彻底杜绝手持晃动与虚拟步数混淆串扰
+                        param.result = null
+                        return
                     } else if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
-                        // 当目标运动 App 读取加速度计做实时步频分析与垂直振荡滤波时
-                        // 注入符合真实人体奔跑/健走生理节拍的平滑三轴加速度波形，彻底消除 471 鬼畜步频与断续空图
+                        // 当目标运动 App（如 Keep/悦跑圈）通过加速度计进行跑姿分析与实时步频解算时
+                        // 核心运动生理学：人体一个完整步态周期（Gait Cycle/Stride）包含左脚与右脚两次单步（2 Steps）
+                        // Keep 等运动 App 的加速度计峰谷/过零检测算法对单轴正弦波每个半波均判定为一次触地计步（1 Cycle = 2 Steps）
+                        // 因此波形振荡频率必须精确锁定跨步频率（Stride Frequency = Cadence / 120.0 Hz）
+                        // 彻底根治因误用单步频率（Cadence / 60）导致 Keep 识别出 231 SPM 甚至 428 SPM 鬼畜步频的顽疾！
                         if (state.speed > 0.4f && state.cadenceSpm > 0 && event.values.size >= 3) {
                             val cadence = state.cadenceSpm.coerceIn(80, 205)
-                            val stepFreqHz = cadence / 60.0
+                            val strideFreqHz = cadence / 120.0
                             val tSec = (SystemClock.elapsedRealtimeNanos() % 100_000_000_000L) / 1_000_000_000.0
-                            val stepPhase = 2.0 * Math.PI * stepFreqHz * tSec
-                            val stridePhase = stepPhase * 0.5
+                            val stridePhase = 2.0 * Math.PI * strideFreqHz * tSec
 
-                            // 振幅自适应人体运动动力学：慢走 (1.3m/s) 垂直振荡仅 0.9m/s²，快跑 (3.5m/s) 达 2.4m/s²
+                            // 振幅自适应人体运动动力学：慢走 (1.35m/s) 垂直振荡 0.85m/s²，跑步 (3.5m/s) 达 2.2m/s²
                             val vertAmp = when {
                                 state.speed <= 1.8f -> (0.6f + (state.speed - 0.4f) * 0.4f).coerceIn(0.6f, 1.2f)
-                                state.speed <= 3.5f -> (1.2f + (state.speed - 1.8f) * 0.7f).coerceIn(1.2f, 2.4f)
-                                else -> (2.4f + (state.speed - 3.5f) * 0.4f).coerceIn(2.4f, 3.2f)
+                                state.speed <= 3.5f -> (1.2f + (state.speed - 1.8f) * 0.6f).coerceIn(1.2f, 2.2f)
+                                else -> (2.2f + (state.speed - 3.5f) * 0.3f).coerceIn(2.2f, 2.8f)
                             }
 
-                            // Y 轴主垂直运动冲击波 (9.80665 m/s² 重力基底 + 速度自适应垂直振荡)
-                            event.values[1] = (9.80665 + Math.sin(stepPhase) * vertAmp).toFloat()
-                            // X 轴左右迈步侧摆 (跨步半频，振幅 0.2~0.5m/s²)
-                            event.values[0] = (Math.sin(stridePhase) * (vertAmp * 0.25f)).toFloat()
-                            // Z 轴前后摆动与身体俯仰
-                            event.values[2] = (Math.cos(stepPhase) * (vertAmp * 0.35f)).toFloat()
+                            // Y 轴主垂直运动冲击波 (9.80665 m/s² 重力基底 + 严格跨步频率振荡，产生左右脚各一次落地冲击峰值)
+                            event.values[1] = (9.80665 + Math.sin(stridePhase) * vertAmp).toFloat()
+                            // X 轴左右迈步侧摆 (严格对齐跨步半频，振幅适度，严禁产生正交高次谐波)
+                            event.values[0] = (Math.sin(stridePhase * 0.5) * (vertAmp * 0.2f)).toFloat()
+                            // Z 轴身体前后微幅俯仰 (严格同相微幅，杜绝正交余弦波引发额外导数峰值导致 4x 触发)
+                            event.values[2] = (Math.sin(stridePhase) * (vertAmp * 0.15f)).toFloat()
+                        } else {
+                            // 原地驻留或静止态：平稳重力基准 (0, 9.80665, 0)，彻底消除假动作步数干扰
+                            if (event.values.size >= 3) {
+                                event.values[0] = 0f
+                                event.values[1] = 9.80665f
+                                event.values[2] = 0f
+                            }
                         }
                     }
                 }
@@ -1051,6 +1054,12 @@ class XposedEntry : IXposedHookLoadPackage {
 
                             // 计步器主动仿真事件分发（为无物理计步器的模拟器与静止真机主动推送步数事件）
                             if (activeStepListeners.isNotEmpty() && state.totalSteps > 0 && (state.totalSteps != lastDispatchedStepCount || state.speed > 0.35f)) {
+                                if (state.totalSteps < lastDispatchedStepCount) {
+                                    lastDispatchedStepCount = -1L // 新会话重置
+                                }
+                                if (!hasCapturedRealHardwareStep) {
+                                    hasCapturedRealHardwareStep = true // 永久锁定基准，严禁派发过程中突跳
+                                }
                                 val stepDelta = if (lastDispatchedStepCount >= 0) (state.totalSteps - lastDispatchedStepCount).coerceIn(1L, 4L).toInt() else 1
                                 lastDispatchedStepCount = state.totalSteps
 
@@ -1074,11 +1083,11 @@ class XposedEntry : IXposedHookLoadPackage {
                                             }
                                         }
                                     } else if (info.sensor.type == Sensor.TYPE_STEP_DETECTOR) {
-                                        // 核心防冲突：若宿主 App 已注册 TYPE_STEP_COUNTER，严禁同时推送 STEP_DETECTOR，彻底消除双源计步导致的步频翻倍与步幅减半！
+                                        // 核心防冲突：若宿主 App 已注册 TYPE_STEP_COUNTER，由权威计数器独占更新，严禁同时推送 STEP_DETECTOR
                                         if (hasCounterListener) {
                                             continue
                                         }
-                                        // 依据实际配速步数增量分发单步检测事件，严禁粗暴 1Hz 单步脉冲引发步频失真
+                                        // 当且仅当应用仅监听 STEP_DETECTOR 时，依据实际配速步数增量均匀离散派发单步检测事件
                                         val h = info.targetHandler ?: mainHandler
                                         for (subStep in 1..stepDelta) {
                                             val subDelay = (subStep - 1) * (1000L / stepDelta)

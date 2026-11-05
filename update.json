@@ -1,9 +1,9 @@
 {
-  "versionCode": 11,
-  "versionName": "1.2.6",
-  "downloadUrl": "https://github.com/SyncPulseDev/LocationMockPro/releases/download/v1.2.6/app-release.apk",
-  "changelog": "1. 🏃 彻底消除双源计步冲突与步数翻倍异常：引入智能主次传感器互斥机制（Single-source Step Arbiter），当应用注册 TYPE_STEP_COUNTER 时严格抑制次级 STEP_DETECTOR 模拟推送与真实物理硬件微动串扰，彻底根治 Keep 步频 231 SPM 翻倍与步幅 35cm 减半异常\n2. 🧬 人体运动学重力加速度平滑动态自适应：加速度计垂直振荡波幅由机械固定 3.2m/s² 优化为速度自适应拟合（慢走 0.9m/s²、快走 1.2m/s²、快跑 2.4m/s²），左右侧摆自动锁定双步跨步半频\n3. 🎯 步态生理学边界精细扩展：扩展低速健走步频下限至 80 SPM，在 12'22\" 慢速健走下完美呈现 114 SPM 与 71cm 真实人体步幅\n4. 🛡️ 传感器 Listener 复合 Hash 隔离：引入 SensorType 命名空间哈希隔离，杜绝多传感器注册覆盖与注销误伤",
-  "fileSize": 1605955,
+  "versionCode": 12,
+  "versionName": "1.2.7",
+  "downloadUrl": "https://github.com/SyncPulseDev/LocationMockPro/releases/download/v1.2.7/app-release.apk",
+  "changelog": "1. 🏃 彻底根治 428/231 鬼畜步频与步幅异常（跨步频率精准锁定）：基于运动生理学与数字信号处理（DSP）算法，人体单次完整步态周期（Stride）对应左/右脚两次单步触地（2 Steps）。针对 Keep 等 App 对单轴正弦波每个半波均计 1 步的特性，将加速度计振荡频率严格锁定为跨步频率 (Stride Frequency = Cadence / 120.0 Hz)，彻底消除翻倍与四倍谐波触发，步频与步幅 100% 契合真人表现！\n2. 🧬 三轴同相微幅重构消除正交谐波：Z 轴与 X 轴彻底摒弃 90 度正交余弦波，消除三维向量导数峰值倍增诱发的 428 SPM 异常，静止/原地驻留自动平稳对齐自然重力 (0, 9.80665, 0)；\n3. 🛡️ 硬件计步基准单调性永久锁止：开机硬件物理基准值（baseHardwareSteps）首次锁定后禁止运行中突变，彻底杜绝自循环跳变引发的 533 SPM 风控极值与非单调回滚；\n4. 🚫 真实微动物理层绝对阻断：在位移模拟激活期间，全面阻断真实硬件物理微动 STEP_DETECTOR 回调，杜绝手持晃动与虚拟步数混淆串扰。",
+  "fileSize": 1605919,
   "publishDate": "2026-11-05",
   "forceUpdate": false
 }

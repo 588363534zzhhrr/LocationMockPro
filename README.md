@@ -2,7 +2,7 @@
 
 [![Android](https://img.shields.io/badge/Platform-Android%208.0%20~%2015%20(API%2026--35)-brightgreen.svg)](https://developer.android.com)
 [![Architecture Rating](https://img.shields.io/badge/Architecture%20Review-S%2B%20(Production--Ready)-success.svg)](https://github.com/SyncPulseDev/LocationMockPro)
-[![Version](https://img.shields.io/badge/Version-v1.2.6-blue.svg)](https://github.com/SyncPulseDev/LocationMockPro/releases)
+[![Version](https://img.shields.io/badge/Version-v1.2.7-blue.svg)](https://github.com/SyncPulseDev/LocationMockPro/releases)
 [![LSPosed](https://img.shields.io/badge/Module-LSPosed%20%2F%20Xposed%20Supported-purple.svg)](https://github.com/LSPosed/LSPosed)
 [![Kotlin](https://img.shields.io/badge/Language-Kotlin%202.0%2B-blue.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-purple.svg)](https://developer.android.com/jetpack/compose)
@@ -126,6 +126,13 @@ LocationMockPro/
 ---
 
 ## 📝 更新日志 (Changelog)
+
+### v1.2.7 (Build 12) - 2026-11-05
+- **🏃 彻底根治 428/231 鬼畜步频与步幅异常（跨步频率精准锁定）**：
+  - **跨步与单步生理学相位对齐**：基于人体生物力学与 DSP 峰值滤波算法，单次完整步态周期（Stride）包含左脚与右脚两次单步触地（2 Steps）。Keep 等运动 App 的加速度计峰谷与过零检测算法对单轴正弦波每个半波均判定为一次触地计步（1 周期 = 2 步）。将加速度计振荡频率严格锁定为跨步频率（Stride Frequency = Cadence / 120.0 Hz），彻底根治误用单步频率导致的 231 SPM 翻倍异常！
+  - **三轴同相微幅重构消除正交谐波**：Z 轴前后俯仰与 X 轴迈步侧摆彻底摒弃 90 度正交余弦波，消除三维空间向量导数峰值倍增诱发的 428 SPM 异常，静止/原地驻留自动平稳对齐自然重力 (0, 9.80665, 0)；
+  - **硬件计步基准单调性永久锁止**：开机物理硬件步数基准值（baseHardwareSteps）首次锁定后禁止运行中突变，彻底杜绝自循环跳变引发的 533 SPM 风控极值与非单调回滚；
+  - **真实微动物理层绝对阻断**：在位移模拟激活期间，全面阻断真实硬件物理微动 STEP_DETECTOR 回调，杜绝手持晃动与虚拟步数混淆串扰。
 
 ### v1.2.6 (Build 11) - 2026-11-05
 - **🏃 彻底消除双源计步冲突与步频翻倍异常 (Single-source Step Arbiter)**：
