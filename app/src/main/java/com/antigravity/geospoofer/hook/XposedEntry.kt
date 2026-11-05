@@ -35,6 +35,9 @@ import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 import java.lang.ref.WeakReference
+import java.util.Calendar
+import java.util.Locale
+import java.util.TimeZone
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 
@@ -64,6 +67,7 @@ class XposedEntry : IXposedHookLoadPackage {
     private val activeDispatchers = ConcurrentHashMap<Int, ListenerDispatcher>()
     private val activeStepListeners = ConcurrentHashMap<Int, StepListenerInfo>()
     private val activeGnssCallbacks = ConcurrentHashMap<Int, WeakReference<android.location.GnssStatus.Callback>>()
+    private val activeNmeaListeners = ConcurrentHashMap<Int, NmeaListenerInfo>()
     @Volatile private var isDispatcherRunning = false
     private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
 
@@ -72,6 +76,47 @@ class XposedEntry : IXposedHookLoadPackage {
         val sensor: Sensor,
         val targetHandler: Handler?
     )
+
+    private class NmeaListenerInfo(
+        val rawListener: WeakReference<Any>,
+        val targetHandler: Handler?,
+        val targetExecutor: Executor?,
+        val isModern: Boolean
+    ) {
+        fun isAlive(): Boolean = rawListener.get() != null
+
+        fun dispatch(nmea: String, timestamp: Long, defaultMainHandler: Handler) {
+            val listener = rawListener.get() ?: return
+            val action = Runnable {
+                val active = rawListener.get() ?: return@Runnable
+                try {
+                    if (isModern) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && active is android.location.OnNmeaMessageListener) {
+                            active.onNmeaMessage(nmea, timestamp)
+                        } else {
+                            val method = active.javaClass.getMethod("onNmeaMessage", String::class.java, Long::class.javaPrimitiveType)
+                            method.invoke(active, nmea, timestamp)
+                        }
+                    } else {
+                        if (active is android.location.GpsStatus.NmeaListener) {
+                            active.onNmeaReceived(timestamp, nmea)
+                        } else {
+                            val method = active.javaClass.getMethod("onNmeaReceived", Long::class.javaPrimitiveType, String::class.java)
+                            method.invoke(active, timestamp, nmea)
+                        }
+                    }
+                } catch (_: Throwable) {}
+            }
+
+            if (targetExecutor != null) {
+                try { targetExecutor.execute(action) } catch (_: Throwable) {}
+            } else if (targetHandler != null) {
+                try { targetHandler.post(action) } catch (_: Throwable) {}
+            } else {
+                try { defaultMainHandler.post(action) } catch (_: Throwable) {}
+            }
+        }
+    }
 
     // 进程内缓存模拟状态（避免高频 IPC 跨进程开销，1 秒缓存过期刷新）
     private var cachedState: RemoteState? = null
@@ -438,6 +483,69 @@ class XposedEntry : IXposedHookLoadPackage {
                 })
             }
         } catch (_: Throwable) {}
+
+        // C. 拦截 PackageManager.hasSystemFeature：在无物理计步传感器或模拟器环境下伪装支持 STEP_COUNTER 与 STEP_DETECTOR
+        try {
+            val appPkgMgrClass = Class.forName("android.app.ApplicationPackageManager")
+            XposedHelpers.findAndHookMethod(
+                appPkgMgrClass,
+                "hasSystemFeature",
+                String::class.java,
+                object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        val feature = param.args[0] as? String
+                        if (feature == "android.hardware.sensor.stepcounter" ||
+                            feature == "android.hardware.sensor.stepdetector") {
+                            param.result = true
+                        }
+                    }
+                }
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                XposedHelpers.findAndHookMethod(
+                    appPkgMgrClass,
+                    "hasSystemFeature",
+                    String::class.java,
+                    Int::class.javaPrimitiveType,
+                    object : XC_MethodHook() {
+                        override fun afterHookedMethod(param: MethodHookParam) {
+                            val feature = param.args[0] as? String
+                            if (feature == "android.hardware.sensor.stepcounter" ||
+                                feature == "android.hardware.sensor.stepdetector") {
+                                param.result = true
+                            }
+                        }
+                    }
+                )
+            }
+        } catch (_: Throwable) {}
+
+        // D. 拦截 SensorManager.getSensorList：当系统未检测到物理步数传感器时注入仿真传感器实例
+        try {
+            XposedHelpers.findAndHookMethod(
+                SensorManager::class.java,
+                "getSensorList",
+                Int::class.javaPrimitiveType,
+                object : XC_MethodHook() {
+                    @Suppress("UNCHECKED_CAST")
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        val type = param.args[0] as? Int ?: return
+                        if (type == Sensor.TYPE_STEP_COUNTER || type == Sensor.TYPE_STEP_DETECTOR || type == Sensor.TYPE_ALL) {
+                            val list = (param.result as? List<Sensor>)?.toMutableList() ?: mutableListOf()
+                            val hasCounter = list.any { it.type == Sensor.TYPE_STEP_COUNTER }
+                            val hasDetector = list.any { it.type == Sensor.TYPE_STEP_DETECTOR }
+                            if ((type == Sensor.TYPE_STEP_COUNTER || type == Sensor.TYPE_ALL) && !hasCounter) {
+                                createFakeStepSensor(Sensor.TYPE_STEP_COUNTER)?.let { list.add(it) }
+                            }
+                            if ((type == Sensor.TYPE_STEP_DETECTOR || type == Sensor.TYPE_ALL) && !hasDetector) {
+                                createFakeStepSensor(Sensor.TYPE_STEP_DETECTOR)?.let { list.add(it) }
+                            }
+                            param.result = list
+                        }
+                    }
+                }
+            )
+        } catch (_: Throwable) {}
     }
 
     /**
@@ -674,6 +782,146 @@ class XposedEntry : IXposedHookLoadPackage {
                     }
                 })
             } catch (_: Throwable) {}
+
+            // F. Hook addNmeaListener / removeNmeaListener (捕获高德/百度/Keep等监听 NMEA 原始卫星报文)
+            try {
+                val addNmeaMethods = LocationManager::class.java.declaredMethods.filter { it.name == "addNmeaListener" }
+                for (method in addNmeaMethods) {
+                    XposedBridge.hookMethod(method, object : XC_MethodHook() {
+                        override fun beforeHookedMethod(param: MethodHookParam) {
+                            var targetListener: Any? = null
+                            var targetHandler: Handler? = null
+                            var targetExecutor: Executor? = null
+                            var isModern = false
+
+                            for (arg in param.args) {
+                                if (arg == null) continue
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && arg is android.location.OnNmeaMessageListener) {
+                                    targetListener = arg
+                                    isModern = true
+                                } else if (arg is android.location.GpsStatus.NmeaListener) {
+                                    targetListener = arg
+                                    isModern = false
+                                } else if (arg is Handler) {
+                                    targetHandler = arg
+                                } else if (arg is Executor) {
+                                    targetExecutor = arg
+                                } else if (arg.javaClass.name.contains("NmeaMessageListener")) {
+                                    targetListener = arg
+                                    isModern = true
+                                } else if (arg.javaClass.name.contains("NmeaListener")) {
+                                    targetListener = arg
+                                    isModern = false
+                                }
+                            }
+
+                            if (targetListener != null) {
+                                val info = NmeaListenerInfo(
+                                    WeakReference(targetListener),
+                                    targetHandler,
+                                    targetExecutor,
+                                    isModern
+                                )
+                                activeNmeaListeners[System.identityHashCode(targetListener)] = info
+                                ensureActiveDispatcher()
+                            }
+                        }
+                    })
+                }
+
+                val removeNmeaMethods = LocationManager::class.java.declaredMethods.filter { it.name == "removeNmeaListener" }
+                for (method in removeNmeaMethods) {
+                    XposedBridge.hookMethod(method, object : XC_MethodHook() {
+                        override fun beforeHookedMethod(param: MethodHookParam) {
+                            val listener = param.args.firstOrNull { it != null && (it.javaClass.name.contains("Nmea") || it is android.location.GpsStatus.NmeaListener) } ?: return
+                            activeNmeaListeners.remove(System.identityHashCode(listener))
+                        }
+                    })
+                }
+            } catch (_: Throwable) {}
+
+            // G. Hook isProviderEnabled (确保在模拟开启时 gps/network/fused 恒定可用)
+            try {
+                XposedHelpers.findAndHookMethod(
+                    LocationManager::class.java,
+                    "isProviderEnabled",
+                    String::class.java,
+                    object : XC_MethodHook() {
+                        override fun afterHookedMethod(param: MethodHookParam) {
+                            val state = getSimState() ?: return
+                            if (state.isMocking) {
+                                val p = param.args[0] as? String
+                                if (p == LocationManager.GPS_PROVIDER ||
+                                    p == LocationManager.NETWORK_PROVIDER ||
+                                    p == LocationManager.PASSIVE_PROVIDER ||
+                                    p == "fused") {
+                                    param.result = true
+                                }
+                            }
+                        }
+                    }
+                )
+            } catch (_: Throwable) {}
+
+            // H. Hook getProviders & getAllProviders
+            try {
+                XposedHelpers.findAndHookMethod(
+                    LocationManager::class.java,
+                    "getProviders",
+                    Boolean::class.javaPrimitiveType,
+                    object : XC_MethodHook() {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun afterHookedMethod(param: MethodHookParam) {
+                            val state = getSimState() ?: return
+                            if (state.isMocking) {
+                                val list = (param.result as? List<String>)?.toMutableList() ?: mutableListOf()
+                                if (!list.contains(LocationManager.GPS_PROVIDER)) list.add(LocationManager.GPS_PROVIDER)
+                                if (!list.contains(LocationManager.NETWORK_PROVIDER)) list.add(LocationManager.NETWORK_PROVIDER)
+                                if (!list.contains(LocationManager.PASSIVE_PROVIDER)) list.add(LocationManager.PASSIVE_PROVIDER)
+                                if (!list.contains("fused")) list.add("fused")
+                                param.result = list
+                            }
+                        }
+                    }
+                )
+
+                XposedHelpers.findAndHookMethod(
+                    LocationManager::class.java,
+                    "getAllProviders",
+                    object : XC_MethodHook() {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun afterHookedMethod(param: MethodHookParam) {
+                            val state = getSimState() ?: return
+                            if (state.isMocking) {
+                                val list = (param.result as? List<String>)?.toMutableList() ?: mutableListOf()
+                                if (!list.contains(LocationManager.GPS_PROVIDER)) list.add(LocationManager.GPS_PROVIDER)
+                                if (!list.contains(LocationManager.NETWORK_PROVIDER)) list.add(LocationManager.NETWORK_PROVIDER)
+                                if (!list.contains(LocationManager.PASSIVE_PROVIDER)) list.add(LocationManager.PASSIVE_PROVIDER)
+                                if (!list.contains("fused")) list.add("fused")
+                                param.result = list
+                            }
+                        }
+                    }
+                )
+            } catch (_: Throwable) {}
+
+            // I. Hook getBestProvider
+            try {
+                XposedHelpers.findAndHookMethod(
+                    LocationManager::class.java,
+                    "getBestProvider",
+                    android.location.Criteria::class.java,
+                    Boolean::class.javaPrimitiveType,
+                    object : XC_MethodHook() {
+                        override fun afterHookedMethod(param: MethodHookParam) {
+                            val state = getSimState() ?: return
+                            if (state.isMocking) {
+                                param.result = LocationManager.GPS_PROVIDER
+                            }
+                        }
+                    }
+                )
+            } catch (_: Throwable) {}
         } catch (_: Throwable) {}
     }
 
@@ -793,6 +1041,23 @@ class XposedEntry : IXposedHookLoadPackage {
                                                 try { cb.onSatelliteStatusChanged(status) } catch (_: Throwable) {}
                                             }
                                         }
+                                    }
+                                }
+                            }
+
+                            // NMEA 0183 原始卫星报文主动仿真流推流 ($GPRMC & $GPGGA)
+                            if (activeNmeaListeners.isNotEmpty()) {
+                                val nowMillis = System.currentTimeMillis()
+                                val sentences = buildNmeaSentences(state, nowMillis)
+                                val nmeaEntries = activeNmeaListeners.entries.toList()
+                                for (entry in nmeaEntries) {
+                                    val info = entry.value
+                                    if (!info.isAlive()) {
+                                        activeNmeaListeners.remove(entry.key)
+                                        continue
+                                    }
+                                    for (sentence in sentences) {
+                                        info.dispatch(sentence, nowMillis, mainHandler)
                                     }
                                 }
                             }
@@ -1189,7 +1454,68 @@ class XposedEntry : IXposedHookLoadPackage {
                 speedAccuracyMetersPerSecond = 0.2f
                 verticalAccuracyMeters = 1.5f
             }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                try {
+                    mslAltitudeMeters = state.altitude
+                    mslAltitudeAccuracyMeters = 1.0f
+                } catch (_: Throwable) {}
+            }
         }
+    }
+
+    /**
+     * 合成标准 NMEA 0183 卫星报文 ($GPRMC 与 $GPGGA)
+     */
+    private fun buildNmeaSentences(state: RemoteState, timestamp: Long): List<String> {
+        val calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+            timeInMillis = timestamp
+        }
+        val utcTime = String.format(
+            Locale.US,
+            "%02d%02d%02d.%02d",
+            calendar.get(Calendar.HOUR_OF_DAY),
+            calendar.get(Calendar.MINUTE),
+            calendar.get(Calendar.SECOND),
+            calendar.get(Calendar.MILLISECOND) / 10
+        )
+        val utcDate = String.format(
+            Locale.US,
+            "%02d%02d%02d",
+            calendar.get(Calendar.DAY_OF_MONTH),
+            calendar.get(Calendar.MONTH) + 1,
+            calendar.get(Calendar.YEAR) % 100
+        )
+
+        val latDeg = Math.abs(state.latitude).toInt()
+        val latMin = (Math.abs(state.latitude) - latDeg) * 60.0
+        val latHem = if (state.latitude >= 0) "N" else "S"
+        val latStr = String.format(Locale.US, "%02d%07.4f,%s", latDeg, latMin, latHem)
+
+        val lonDeg = Math.abs(state.longitude).toInt()
+        val lonMin = (Math.abs(state.longitude) - lonDeg) * 60.0
+        val lonHem = if (state.longitude >= 0) "E" else "W"
+        val lonStr = String.format(Locale.US, "%03d%07.4f,%s", lonDeg, lonMin, lonHem)
+
+        val speedKnots = state.speed * 1.943844f
+        val speedStr = String.format(Locale.US, "%05.1f", speedKnots)
+        val bearingStr = String.format(Locale.US, "%05.1f", state.bearing)
+        val altStr = String.format(Locale.US, "%.1f", state.altitude)
+
+        val rmcPayload = "GPRMC,$utcTime,A,$latStr,$lonStr,$speedStr,$bearingStr,$utcDate,,,A"
+        val rmc = formatNmeaSentence(rmcPayload)
+
+        val ggaPayload = "GPGGA,$utcTime,$latStr,$lonStr,1,16,0.8,$altStr,M,0.0,M,,"
+        val gga = formatNmeaSentence(ggaPayload)
+
+        return listOf(rmc, gga)
+    }
+
+    private fun formatNmeaSentence(payload: String): String {
+        var checksum = 0
+        for (char in payload) {
+            checksum = checksum xor char.code
+        }
+        return "\$$payload*${String.format(Locale.US, "%02X", checksum)}"
     }
 
     /**

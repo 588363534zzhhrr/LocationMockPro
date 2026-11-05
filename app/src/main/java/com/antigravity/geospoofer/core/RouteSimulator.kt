@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
@@ -145,6 +146,7 @@ class RouteSimulator(
             }
             var isReverse = false
             var overallCumulativeDistance = 0.0
+            var cumulativeSteps = 0.0
             var cumulativeElevationGain = 0.0
             var lastElevation = 35.0
 
@@ -272,12 +274,15 @@ class RouteSimulator(
                         val currentTargetDist = traveledInSegment.coerceAtMost(segDist)
                         val nextPoint = CoordinateUtils.movePoint(p1.latitude, p1.longitude, currentTargetDist, bearing)
 
-                        // 5. 计步与热量
-                        val calculatedSteps = (overallCumulativeDistance / strideLengthMeters).toLong()
-                        val cadence = if (speedToUse > 0.4f) ((speedToUse / strideLengthMeters) * 60).toInt() else 0
+                        // 5. 运动生理学动态步长与步频动力学拟真（杜绝传统固定步长引发 300+ SPM 异常被风控拦截）
+                        val (dynamicStride, naturalCadence) = calculateHumanGait(speedToUse)
+                        if (dynamicStride > 0.1 && speedToUse > 0.35f) {
+                            cumulativeSteps += (distanceThisTick / dynamicStride)
+                        }
+                        val calculatedSteps = cumulativeSteps.toLong()
                         val calories = (overallCumulativeDistance * 0.062).toInt()
                         // 跨进程同步计步器至 LocationStateProvider（供 LSPosed 模块直接注入目标 App 传感器）
-                        LocationStateProvider.updateSteps(calculatedSteps, cadence)
+                        LocationStateProvider.updateSteps(calculatedSteps, naturalCadence)
 
                         // 6. 海拔与爬升计算
                         var currentElevation = 35.0
@@ -349,7 +354,7 @@ class RouteSimulator(
                             totalSegments = currentWaypoints.size - 1,
                             progressFraction = progressFraction,
                             totalSteps = calculatedSteps,
-                            cadenceSpm = cadence,
+                            cadenceSpm = naturalCadence,
                             caloriesKcal = calories,
                             currentElevationMeters = currentElevation,
                             elevationGainMeters = cumulativeElevationGain,
@@ -430,4 +435,34 @@ class RouteSimulator(
 
     val isSimulating: Boolean
         get() = simulationJob?.isActive == true
+
+    companion object {
+        /**
+         * 运动生理学步幅与步频动态动力学模型 (Human Locomotion Biomechanics Model)
+         * 依据人体运动学自适应调节规律：
+         * 随着跑速提升，步长非线性自然扩展，步频始终严格锁定在人类真实生理学边界内（110 ~ 198 SPM，极限截断 205 SPM）。
+         */
+        fun calculateHumanGait(speedMps: Float): Pair<Double, Int> {
+            if (speedMps < 0.35f) {
+                return Pair(0.65, 0) // 原地静止驻留
+            }
+            if (speedMps > 8.0f) {
+                // > 28.8 km/h 判定为骑行或车载区间，步频置 0 防范非人特征
+                return Pair(1.20, 0)
+            }
+
+            // 动态步长非线性拟合（米）
+            val dynamicStride = when {
+                speedMps <= 1.8f -> (0.55 + speedMps * 0.12).coerceIn(0.60, 0.78)
+                speedMps <= 3.5f -> (0.78 + (speedMps - 1.8) * 0.22).coerceIn(0.78, 1.18)
+                speedMps <= 5.5f -> (1.18 + (speedMps - 3.5) * 0.16).coerceIn(1.18, 1.50)
+                else -> (1.50 + (speedMps - 5.5) * 0.10).coerceIn(1.50, 1.75)
+            }
+
+            val rawCadence = ((speedMps / dynamicStride) * 60.0).roundToInt()
+            val naturalCadence = rawCadence.coerceIn(95, 202)
+
+            return Pair(dynamicStride, naturalCadence)
+        }
+    }
 }

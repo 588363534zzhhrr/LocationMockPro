@@ -258,6 +258,12 @@ class MockLocationEngine(private val context: Context) {
                     speedAccuracyMetersPerSecond = 0.2f
                     verticalAccuracyMeters = 1.5f
                 }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    try {
+                        mslAltitudeMeters = currentAltitude
+                        mslAltitudeAccuracyMeters = 1.5f
+                    } catch (_: Throwable) {}
+                }
             }
 
             try {

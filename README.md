@@ -2,7 +2,7 @@
 
 [![Android](https://img.shields.io/badge/Platform-Android%208.0%20~%2015%20(API%2026--35)-brightgreen.svg)](https://developer.android.com)
 [![Architecture Rating](https://img.shields.io/badge/Architecture%20Review-S%2B%20(Production--Ready)-success.svg)](https://github.com/SyncPulseDev/LocationMockPro)
-[![Version](https://img.shields.io/badge/Version-v1.2.3-blue.svg)](https://github.com/SyncPulseDev/LocationMockPro/releases)
+[![Version](https://img.shields.io/badge/Version-v1.2.4-blue.svg)](https://github.com/SyncPulseDev/LocationMockPro/releases)
 [![LSPosed](https://img.shields.io/badge/Module-LSPosed%20%2F%20Xposed%20Supported-purple.svg)](https://github.com/LSPosed/LSPosed)
 [![Kotlin](https://img.shields.io/badge/Language-Kotlin%202.0%2B-blue.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-purple.svg)](https://developer.android.com/jetpack/compose)
@@ -126,6 +126,33 @@ LocationMockPro/
 ---
 
 ## 📝 更新日志 (Changelog)
+
+### v1.2.4 (Build 9) - 2026-11-05
+- **📡 全星座 NMEA-0183 原始卫星流调度器**：
+  - 全面 Hook `LocationManager.addNmeaListener` 与 `removeNmeaListener`（覆盖 legacy `GpsStatus.NmeaListener` 与 API 24+ `OnNmeaMessageListener` 及任意 Handler / Executor 上下文）；
+  - 调度线程持续向目标应用与风控 SDK 投递标准合规的 `$GPRMC` 与 `$GPGGA` 报文流，彻底破解钉钉、Keep、高德等大厂防作弊 SDK 对 NMEA 报文流缺失的风控检测。
+- **🏃 人体生物力学步态动力学模型 (`calculateHumanGait`)**：
+  - 彻底摒弃传统固定步长（0.72m）方案，基于真实人体运动生理学构建配速-步长-步频非线性动力学模型；
+  - 步频严格自适应收敛在 95~202 SPM 生理学区间，彻底杜绝高速跑步/骑行时步频飙升至 300+ SPM 违背人体极限引发的反作弊封号。
+- **⚙️ 定位提供者状态与多源定位补齐**：
+  - 底层 Hook `LocationManager.isProviderEnabled`、`getProviders`、`getAllProviders` 与 `getBestProvider`；
+  - 在模拟激活期间确保 `gps`、`network`、`fused` 恒定可用，解决模拟器或系统 GPS 未开启时目标应用弹出开启提示或降级检测。
+- **🧩 模拟器硬件特性无感补全**：
+  - Hook `ApplicationPackageManager.hasSystemFeature`，强制对步数传感器特性（`stepcounter` / `stepdetector`）放行；
+  - Hook `SensorManager.getSensorList`，在无传感器真机或 MuMu/夜神等模拟器中自动注入 Bosch 高精度虚拟计步传感器。
+- **📐 IAAF 国际田联 400m 跑道几何间隙修复与 GPX/KML 解析拓宽**：
+  - 修复离散化曲线采样端点漏步导致弧线与直道交界处的 18 度空间破隙，并为环线算法引入 3 点环形平滑闭包；
+  - GPX 解析器拓展支持 `<rtept>` 航线点，并新增 Google Earth / KML `<coordinates>lon,lat,alt ...</coordinates>` 格式导入兼容。
+- **🧹 内存生命周期深度优化与 Android 14+ MSL 海拔支持**：
+  - 在 Leaflet `AndroidView` 引入 `onRelease` 生命周期回调，彻底销毁底层 Chromium 原生 WebView，消除长期巡航下的隐性内存泄漏；
+  - 引入 Android 14+ (API 34) `mslAltitudeMeters` 与 `mslAltitudeAccuracyMeters` 大地水准面海拔装配。
+
+### v1.2.3 (Build 8) - 2026-11-04
+- **🛡️ LSPosed 终极免杀加固**：全面补齐 Android 11+ (API 30+) `getCurrentLocation` 单次精准定位拦截与现代 `AppOpsManager` 字符串鉴权体系 (`OPSTR_MOCK_LOCATION`)。
+- **⚡ 稳定性全面提升**：重构 Root 执行管道彻底消除死锁隐患，切换异步协程彻底杜绝 UI 线程阻塞与 ANR。
+- **🏃 动力学仿真守恒**：引入步长余量结转机制，攻克操场跑道弯道累积减速缺陷，闭环循环自动消除空间瞬移。
+- **🛡️ Android 14+ 前台服务生命周期契约加固**，消除权限受限崩溃陷阱。
+- **🗺️ 地图交互优化**：切 Tab 自动毫秒级还原单点标记与规划航线，优化更新检查接口响应。
 
 ### v1.2.1 (Build 6) - 2026-11-04
 - **🏟️ 400m 标准操场跑道算法纠偏与精细校准引擎**：

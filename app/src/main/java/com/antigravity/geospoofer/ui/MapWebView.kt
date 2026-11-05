@@ -231,6 +231,15 @@ fun InteractiveMapCard(
                         loadUrl("file:///android_asset/map.html")
                     }
                 },
+                onRelease = { wv ->
+                    try {
+                        wv.stopLoading()
+                        wv.loadUrl("about:blank")
+                        wv.clearHistory()
+                        wv.removeAllViews()
+                        wv.destroy()
+                    } catch (_: Exception) {}
+                },
                 modifier = Modifier.fillMaxSize()
             )
         }

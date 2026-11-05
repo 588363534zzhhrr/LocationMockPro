@@ -1,9 +1,9 @@
 {
-  "versionCode": 8,
-  "versionName": "1.2.3",
-  "downloadUrl": "https://github.com/SyncPulseDev/LocationMockPro/releases/download/v1.2.3/app-release.apk",
-  "changelog": "1. 🛡️ LSPosed 终极免杀加固：全面补齐 Android 11+ (API 30+) getCurrentLocation 单次精准定位拦截与现代 AppOps 字符串鉴权体系\n2. ⚡ 稳定性全面提升：重构 Root 执行管道消除死锁隐患，切换异步协程彻底杜绝 UI 线程 ANR\n3. 🏃 动力学仿真守恒：引入步长余量结转机制，攻克操场跑道弯道累积减速缺陷，闭环循环自动消除空间瞬移\n4. 🛡️ Android 14+ 前台服务生命周期契约加固，消除权限受限崩溃陷阱\n5. 🗺️ 地图交互优化：切 Tab 自动毫秒级还原单点标记与规划航线，优化镜像更新源消除无效超时",
-  "fileSize": 1597451,
-  "publishDate": "2026-11-04",
+  "versionCode": 9,
+  "versionName": "1.2.4",
+  "downloadUrl": "https://github.com/SyncPulseDev/LocationMockPro/releases/download/v1.2.4/app-release.apk",
+  "changelog": "1. 📡 全星座 NMEA-0183 卫星流原生调度：全面 Hook LocationManager.addNmeaListener/removeNmeaListener，持续向第三方应用与安全 SDK 投递合规 $GPRMC 与 $GPGGA 卫星报文流，攻克 NMEA 校验风控\n2. 🏃 人体生物力学步态引擎：重构配速-步长-步频非线性动力学模型，彻底消除高配速下 300+ SPM 违背人体生理极限引发的外挂判定\n3. ⚙️ 提供者状态与模拟器感知补齐：全面 Hook isProviderEnabled/getProviders/getBestProvider，确保 GPS 硬件状态与 Fused 恒定可用\n4. 🧩 模拟器全量传感器环境伪装：拦截 ApplicationPackageManager.hasSystemFeature 与 SensorManager.getSensorList，在无传感器/模拟器环境中无感补齐计步硬件特性\n5. 📐 IAAF 国际田联 400m 跑道几何间隙修复与 GPX/KML 航迹解析拓宽：消弭离散化 18 度弧线缝隙，支持 rtept 与 KML coordinates 航点解析\n6. 🧹 内存生命周期深度优化：强化 Chromium WebView 销毁与 Android 14+ MSL 大地水准面海拔补齐",
+  "fileSize": 1604951,
+  "publishDate": "2026-11-05",
   "forceUpdate": false
 }

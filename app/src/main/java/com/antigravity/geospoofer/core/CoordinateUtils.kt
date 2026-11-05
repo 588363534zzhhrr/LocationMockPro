@@ -168,11 +168,22 @@ object CoordinateUtils {
         val random = java.util.Random()
         val baseAngleStep = (2 * PI) / numPoints
 
+        // 生成初始扰动半径并施加三点环形滤波，确保平滑自然且无锐利生硬拐角
+        val rawRadii = DoubleArray(numPoints) {
+            radius * (1.0 + (random.nextGaussian() * irregularity).coerceIn(-0.35, 0.35))
+        }
+        val smoothedRadii = DoubleArray(numPoints)
+        for (i in 0 until numPoints) {
+            val prev = rawRadii[(i - 1 + numPoints) % numPoints]
+            val curr = rawRadii[i]
+            val next = rawRadii[(i + 1) % numPoints]
+            smoothedRadii[i] = prev * 0.25 + curr * 0.50 + next * 0.25
+        }
+
         val points = mutableListOf<LatLng>()
         for (i in 0 until numPoints) {
             val angle = i * baseAngleStep
-            val radiusFactor = 1.0 + (random.nextGaussian() * irregularity).coerceIn(-0.35, 0.35)
-            val currentR = radius * radiusFactor
+            val currentR = smoothedRadii[i]
             val bearingDeg = Math.toDegrees(angle).toFloat()
             val pt = movePoint(centerLat, centerLon, currentR, bearingDeg)
             points.add(pt)
@@ -184,6 +195,9 @@ object CoordinateUtils {
 
     /**
      * 生成标准 400 米国际田联标准田径场跑道闭环路线（包含两条直道与两段半圆弯道，完美适配校园跑、体测与操场巡航）
+     * 严格遵照 IAAF 规范：
+     * - 直道全长 84.39 米，第1道计算跑线半径 36.80 米，周长精准 400.0 米
+     * - 直道与半圆弯道在接缝处几何连续（C1连续），彻底消除 18 度角开裂与折角错位缺陷
      * @param centerLat 操场中心纬度
      * @param centerLon 操场中心经度
      * @param orientationDeg 跑道长轴航向角（顺时针度数，0 为南北向，90 为东西向）
@@ -200,8 +214,6 @@ object CoordinateUtils {
         pointsPerCurve: Int = 10
     ): List<LatLng> {
         val halfL = 42.195   // 直道半长：IAAF标准直道全长 84.39 米
-        // IAAF标准：第1道内突沿半径 36.50m，第1道计算跑线半径 36.80m（+0.30m）
-        // 第 2~8 道（分道宽 1.22m），计算跑线距分道线外 0.20m
         val clampedLane = lane.coerceIn(1, 8)
         val radius = if (clampedLane == 1) {
             36.80
@@ -209,33 +221,34 @@ object CoordinateUtils {
             36.50 + (clampedLane - 1) * 1.22 + 0.20
         }
 
+        val curveSteps = pointsPerCurve.coerceAtLeast(8)
+        val straightSteps = 6
         val localCoords = mutableListOf<Pair<Double, Double>>() // (lx: 东向米, ly: 北向米)
 
         // IAAF 标准逆时针路线（向左转弯）：
-        // 1. 东侧直道：从南向北奔跑
-        val straightSteps = 4
+        // 1. 东侧直道：从南向北奔跑 [-halfL, halfL]
         for (i in 0 until straightSteps) {
             val y = -halfL + (2.0 * halfL * i / straightSteps)
             localCoords.add(Pair(radius, y))
         }
 
-        // 2. 北侧半圆弯道：从东向西逆时针转弯 (角度 0 -> PI)
-        for (i in 0 until pointsPerCurve) {
-            val theta = (i.toDouble() / pointsPerCurve) * PI
+        // 2. 北侧半圆弯道：从东向西逆时针转弯 (角度 0 -> PI，起始点与直道末端完美衔接)
+        for (i in 1..curveSteps) {
+            val theta = (i.toDouble() / curveSteps) * PI
             val x = radius * cos(theta)
             val y = halfL + radius * sin(theta)
             localCoords.add(Pair(x, y))
         }
 
-        // 3. 西侧直道：从北向南奔跑
-        for (i in 0 until straightSteps) {
+        // 3. 西侧直道：从北向南奔跑 [halfL, -halfL]
+        for (i in 1 until straightSteps) {
             val y = halfL - (2.0 * halfL * i / straightSteps)
             localCoords.add(Pair(-radius, y))
         }
 
-        // 4. 南侧半圆弯道：从西向东逆时针转弯 (角度 PI -> 2*PI)
-        for (i in 0 until pointsPerCurve) {
-            val theta = PI + (i.toDouble() / pointsPerCurve) * PI
+        // 4. 南侧半圆弯道：从西向东逆时针转弯 (角度 PI -> 2*PI，终点精确咬合东侧直道起点)
+        for (i in 1..curveSteps) {
+            val theta = PI + (i.toDouble() / curveSteps) * PI
             val x = radius * cos(theta)
             val y = -halfL + radius * sin(theta)
             localCoords.add(Pair(x, y))

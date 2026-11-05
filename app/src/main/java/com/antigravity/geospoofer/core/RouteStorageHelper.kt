@@ -140,13 +140,13 @@ object RouteStorageHelper {
     }
 
     /**
-     * 解析 GPX 字符串获取途经点列表
+     * 解析 GPX / KML 格式字符串获取途经点列表（兼容 trkpt、wpt、rtept 及 KML 航线坐标）
      */
     fun importFromGpx(gpxXml: String): List<CoordinateUtils.LatLng> {
         val points = mutableListOf<CoordinateUtils.LatLng>()
-        // 匹配 <trkpt lat="..." lon="..."> 或 <wpt lat="..." lon="...">
-        val pattern = """<(?:trkpt|wpt)\s+[^>]*lat=["']([-0-9.]+)["'][^>]*lon=["']([-0-9.]+)["']""".toRegex()
-        val patternAlt = """<(?:trkpt|wpt)\s+[^>]*lon=["']([-0-9.]+)["'][^>]*lat=["']([-0-9.]+)["']""".toRegex()
+        // 1. 匹配标准 GPX <trkpt lat="..." lon="...">、<wpt ...> 以及 <rtept ...>
+        val pattern = """<(?:trkpt|wpt|rtept)\s+[^>]*lat=["']([-0-9.]+)["'][^>]*lon=["']([-0-9.]+)["']""".toRegex(RegexOption.IGNORE_CASE)
+        val patternAlt = """<(?:trkpt|wpt|rtept)\s+[^>]*lon=["']([-0-9.]+)["'][^>]*lat=["']([-0-9.]+)["']""".toRegex(RegexOption.IGNORE_CASE)
 
         val matches = pattern.findAll(gpxXml)
         for (m in matches) {
@@ -164,6 +164,26 @@ object RouteStorageHelper {
                 val lat = m.groupValues[2].toDoubleOrNull()
                 if (lat != null && lon != null) {
                     points.add(CoordinateUtils.LatLng(lat, lon))
+                }
+            }
+        }
+
+        // 2. 兼容 Google Earth / GIS KML 格式：<coordinates>lon,lat,alt ...</coordinates>
+        if (points.isEmpty()) {
+            val kmlPattern = """<coordinates>([\s\S]*?)</coordinates>""".toRegex(RegexOption.IGNORE_CASE)
+            val kmlMatches = kmlPattern.findAll(gpxXml)
+            for (km in kmlMatches) {
+                val rawCoordText = km.groupValues[1].trim()
+                val tuples = rawCoordText.split("\\s+".toRegex())
+                for (tuple in tuples) {
+                    val parts = tuple.split(",")
+                    if (parts.size >= 2) {
+                        val lon = parts[0].trim().toDoubleOrNull()
+                        val lat = parts[1].trim().toDoubleOrNull()
+                        if (lat != null && lon != null && lat in -90.0..90.0 && lon in -180.0..180.0) {
+                            points.add(CoordinateUtils.LatLng(lat, lon))
+                        }
+                    }
                 }
             }
         }
