@@ -435,6 +435,9 @@ class XposedEntry : IXposedHookLoadPackage {
                         if (type == Sensor.TYPE_STEP_COUNTER || type == Sensor.TYPE_STEP_DETECTOR) {
                             if (param.result == null) {
                                 param.result = createFakeStepSensor(type)
+                                XposedBridge.log("[LocationMockPro-Sensor] getDefaultSensor($type): Created fake sensor ${param.result}")
+                            } else {
+                                XposedBridge.log("[LocationMockPro-Sensor] getDefaultSensor($type): Hardware sensor found ${param.result}")
                             }
                         }
                     }
@@ -459,6 +462,8 @@ class XposedEntry : IXposedHookLoadPackage {
                             if (arg is Handler) targetHandler = arg
                         }
 
+                        XposedBridge.log("[LocationMockPro-Sensor] registerListener: listener=${listener.javaClass.name}, sensor=${sensor.type} (${sensor.name})")
+
                         if (sensor.type == Sensor.TYPE_STEP_COUNTER || sensor.type == Sensor.TYPE_STEP_DETECTOR || sensor.type == Sensor.TYPE_ACCELEROMETER) {
                             hookSensorEventListener(listener)
                             if (sensor.type == Sensor.TYPE_STEP_COUNTER || sensor.type == Sensor.TYPE_STEP_DETECTOR) {
@@ -468,7 +473,15 @@ class XposedEntry : IXposedHookLoadPackage {
                                     sensor,
                                     targetHandler
                                 )
+                                XposedBridge.log("[LocationMockPro-Sensor] activeStepListeners added: key=$key, sensorType=${sensor.type}, totalListeners=${activeStepListeners.size}")
                                 ensureActiveDispatcher()
+
+                                // 极其关键：拦截底层注册，严禁将伪传感器透传给系统引发误绑物理加速度计 (mHandle=0)
+                                val isFakeSensor = sensor.name.contains("BOSCH") || sensor.vendor.contains("Bosch") || (try { XposedHelpers.getIntField(sensor, "mHandle") < 0 } catch (_: Throwable) { false })
+                                if (isFakeSensor) {
+                                    param.result = true
+                                    return
+                                }
                             }
                         }
                     }
@@ -571,6 +584,7 @@ class XposedEntry : IXposedHookLoadPackage {
 
         try {
             val listenerClass = listener.javaClass
+            XposedBridge.log("[LocationMockPro-Sensor] hookSensorEventListener attached to ${listenerClass.name}")
             val onSensorChangedMethod = listenerClass.getMethod("onSensorChanged", SensorEvent::class.java)
 
             XposedBridge.hookMethod(onSensorChangedMethod, object : XC_MethodHook() {
@@ -598,7 +612,19 @@ class XposedEntry : IXposedHookLoadPackage {
                         param.result = null
                         return
                     } else if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
-                        // 当目标运动 App（如 Keep/悦跑圈）通过加速度计进行跑姿分析与实时步频解算时
+                        // 核心防冲突：若宿主 App 已注册权威 TYPE_STEP_COUNTER，由硬件计数器独占步数更新，
+                        // 加速度计保持平稳重力基准 (0, 9.80665, 0)，杜绝运动世界校园等 App 内部多传感器计步融合算法引发步频翻倍/翻四倍！
+                        val hasCounter = activeStepListeners.values.any { it.sensor.type == Sensor.TYPE_STEP_COUNTER && it.isAlive() }
+                        if (hasCounter) {
+                            if (event.values.size >= 3) {
+                                event.values[0] = 0f
+                                event.values[1] = 9.80665f
+                                event.values[2] = 0f
+                            }
+                            return
+                        }
+
+                        // 当目标运动 App（如 Keep/悦跑圈仅监听加速度计）通过加速度计进行跑姿分析与实时步频解算时
                         // 核心运动生理学：人体一个完整步态周期（Gait Cycle/Stride）包含左脚与右脚两次单步（2 Steps）
                         // Keep 等运动 App 的加速度计峰谷/过零检测算法对单轴正弦波每个半波均判定为一次触地计步（1 Cycle = 2 Steps）
                         // 因此波形振荡频率必须精确锁定跨步频率（Stride Frequency = Cadence / 120.0 Hz）
@@ -1368,6 +1394,7 @@ class XposedEntry : IXposedHookLoadPackage {
             try { XposedHelpers.setFloatField(sensor, "mResolution", 1.0f) } catch (_: Throwable) {}
             try { XposedHelpers.setFloatField(sensor, "mPower", 0.05f) } catch (_: Throwable) {}
             try { XposedHelpers.setIntField(sensor, "mMinDelay", 0) } catch (_: Throwable) {}
+            try { XposedHelpers.setIntField(sensor, "mHandle", if (type == Sensor.TYPE_STEP_COUNTER) -101 else -102) } catch (_: Throwable) {}
             sensor
         } catch (_: Throwable) {
             null

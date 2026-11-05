@@ -1,9 +1,9 @@
 {
-  "versionCode": 12,
-  "versionName": "1.2.7",
-  "downloadUrl": "https://github.com/SyncPulseDev/LocationMockPro/releases/download/v1.2.7/app-release.apk",
-  "changelog": "1. 🏃 彻底根治 428/231 鬼畜步频与步幅异常（跨步频率精准锁定）：基于运动生理学与数字信号处理（DSP）算法，人体单次完整步态周期（Stride）对应左/右脚两次单步触地（2 Steps）。针对 Keep 等 App 对单轴正弦波每个半波均计 1 步的特性，将加速度计振荡频率严格锁定为跨步频率 (Stride Frequency = Cadence / 120.0 Hz)，彻底消除翻倍与四倍谐波触发，步频与步幅 100% 契合真人表现！\n2. 🧬 三轴同相微幅重构消除正交谐波：Z 轴与 X 轴彻底摒弃 90 度正交余弦波，消除三维向量导数峰值倍增诱发的 428 SPM 异常，静止/原地驻留自动平稳对齐自然重力 (0, 9.80665, 0)；\n3. 🛡️ 硬件计步基准单调性永久锁止：开机硬件物理基准值（baseHardwareSteps）首次锁定后禁止运行中突变，彻底杜绝自循环跳变引发的 533 SPM 风控极值与非单调回滚；\n4. 🚫 真实微动物理层绝对阻断：在位移模拟激活期间，全面阻断真实硬件物理微动 STEP_DETECTOR 回调，杜绝手持晃动与虚拟步数混淆串扰。",
-  "fileSize": 1605919,
+  "versionCode": 13,
+  "versionName": "1.2.8",
+  "downloadUrl": "https://github.com/SyncPulseDev/LocationMockPro/releases/download/v1.2.8/app-release.apk",
+  "changelog": "1. 🛡️ 阻断伪传感器内核句柄下穿（Handle 0 冲突彻底根除）：修复反射构造的 TYPE_STEP_COUNTER / STEP_DETECTOR 伪传感器 mHandle 默认 0 导致 Android 底层 SystemSensorManager 误将其作为硬件 3-axis Accelerometer（handle 0）直接绑入物理加速度计数据流的底层严重缺陷，分配独立虚拟负句柄并在 Java 层拦截下传；\n2. 🏃 多传感器计步融合防翻倍（独占单源仲裁）：针对运动世界校园等同时注册 TYPE_STEP_COUNTER、TYPE_STEP_DETECTOR 与 TYPE_ACCELEROMETER 的 App，建立单源独占仲裁体系。当权威 STEP_COUNTER 激活时，自动抑制 STEP_DETECTOR 脉冲分发，并令加速度计保持平稳重力基准 (0, 9.80665, 0)，彻底消除 App 内部三源叠加引发的 471/428 SPM 鬼畜步频与 20cm 碎步异常，步频精准锁定 115–120 SPM，步幅自然锁定 70–75cm；\n3. ⚡ 内存与跨进程派发深度优化：去除高频诊断日志，全面精简分发路径，提升模拟稳定性与抗风控表现。",
+  "fileSize": 1606523,
   "publishDate": "2026-11-05",
   "forceUpdate": false
 }

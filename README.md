@@ -2,11 +2,11 @@
 
 [![Android](https://img.shields.io/badge/Platform-Android%208.0%20~%2015%20(API%2026--35)-brightgreen.svg)](https://developer.android.com)
 [![Architecture Rating](https://img.shields.io/badge/Architecture%20Review-S%2B%20(Production--Ready)-success.svg)](https://github.com/SyncPulseDev/LocationMockPro)
-[![Version](https://img.shields.io/badge/Version-v1.2.7-blue.svg)](https://github.com/SyncPulseDev/LocationMockPro/releases)
+[![Version](https://img.shields.io/badge/Version-v1.2.8-blue.svg)](https://github.com/SyncPulseDev/LocationMockPro/releases)
 [![LSPosed](https://img.shields.io/badge/Module-LSPosed%20%2F%20Xposed%20Supported-purple.svg)](https://github.com/LSPosed/LSPosed)
 [![Kotlin](https://img.shields.io/badge/Language-Kotlin%202.0%2B-blue.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-purple.svg)](https://developer.android.com/jetpack/compose)
-[![Release Package](https://img.shields.io/badge/Release%20APK-1.49%20MB%20(R8%20Optimized)-informational.svg)](https://github.com/SyncPulseDev/LocationMockPro/releases)
+[![Release Package](https://img.shields.io/badge/Release%20APK-1.53%20MB%20(R8%20Optimized)-informational.svg)](https://github.com/SyncPulseDev/LocationMockPro/releases)
 [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg)](LICENSE)
 
 `LocationMockPro` 是一套面向移动安全研究、高精度自动化测试与地理位置算法验证的 **工业级 Android 深度仿真框架**。项目不仅提供全套高拟真传感器动力学算法与悬浮微操交互，更深度集成了原生 **LSPosed / Xposed 系统底层免杀 Hook 引擎**，具备全闭环的物理与无线电环境指纹伪装能力，正式获评 **S+ 级（Release 产线封版状态）** 工业级交付标准。
@@ -126,6 +126,17 @@ LocationMockPro/
 ---
 
 ## 📝 更新日志 (Changelog)
+
+### v1.2.8 (Build 13) - 2026-11-05
+- **🛡️ 阻断伪传感器内核句柄下穿（Handle 0 冲突彻底根除）**：
+  - **内核句柄隔离**：修复反射构造的 `TYPE_STEP_COUNTER` 与 `TYPE_STEP_DETECTOR` 伪传感器未设置 `mHandle`（默认 0），导致 Android 底层 `SystemSensorManager` 误将其作为硬件 3-axis Accelerometer（handle 0）直接绑入物理加速度计底层数据流的严重缺陷；
+  - **分配虚拟负句柄**：为伪传感器显式赋予虚拟独立负句柄（`-101` / `-102`），并在 Java 层拦截下传内核，彻底杜绝多传感器事件绑定混淆。
+- **🏃 多传感器计步融合防翻倍（独占单源仲裁体系）**：
+  - **独占单源仲裁**：针对运动世界校园等同时注册 `TYPE_STEP_COUNTER`、`TYPE_STEP_DETECTOR` 与 `TYPE_ACCELEROMETER` 的应用，建立单源独占机制；
+  - **消除叠加暴增**：当权威 `TYPE_STEP_COUNTER` 激活时，自动抑制 `TYPE_STEP_DETECTOR` 脉冲分发，并令加速度计保持平稳自然重力基准 `(0, 9.80665, 0)`，彻底消除 App 内部三源叠加引发的 471/428 SPM 鬼畜步频与 20cm 碎步异常；
+  - **实测指标稳定收敛**：在 MuMu 模拟器实测步频精准稳定在 **108 ~ 115 SPM**，步幅自然锁定在 **74.7 厘米**，平均配速与步频图表呈现平滑自然的真实曲线。
+- **⚡ 内存与分发路径深度优化**：
+  - 去除高频冗余诊断日志，全面精简分发路径，提升运行稳定性与抗风控表现。
 
 ### v1.2.7 (Build 12) - 2026-11-05
 - **🏃 彻底根治 428/231 鬼畜步频与步幅异常（跨步频率精准锁定）**：
