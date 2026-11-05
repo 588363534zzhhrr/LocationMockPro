@@ -76,7 +76,9 @@ class XposedEntry : IXposedHookLoadPackage {
         val weakListener: WeakReference<SensorEventListener>,
         val sensor: Sensor,
         val targetHandler: Handler?
-    )
+    ) {
+        fun isAlive(): Boolean = weakListener.get() != null
+    }
 
     private class NmeaListenerInfo(
         val rawListener: WeakReference<Any>,
@@ -460,7 +462,8 @@ class XposedEntry : IXposedHookLoadPackage {
                         if (sensor.type == Sensor.TYPE_STEP_COUNTER || sensor.type == Sensor.TYPE_STEP_DETECTOR || sensor.type == Sensor.TYPE_ACCELEROMETER) {
                             hookSensorEventListener(listener)
                             if (sensor.type == Sensor.TYPE_STEP_COUNTER || sensor.type == Sensor.TYPE_STEP_DETECTOR) {
-                                activeStepListeners[System.identityHashCode(listener)] = StepListenerInfo(
+                                val key = System.identityHashCode(listener) xor (sensor.type shl 16)
+                                activeStepListeners[key] = StepListenerInfo(
                                     WeakReference(listener),
                                     sensor,
                                     targetHandler
@@ -481,7 +484,15 @@ class XposedEntry : IXposedHookLoadPackage {
                 XposedBridge.hookMethod(method, object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         val listener = param.args[0] as? SensorEventListener ?: return
-                        activeStepListeners.remove(System.identityHashCode(listener))
+                        val sensor = param.args.getOrNull(1) as? Sensor
+                        val listenerHash = System.identityHashCode(listener)
+                        if (sensor != null) {
+                            activeStepListeners.remove(listenerHash xor (sensor.type shl 16))
+                        } else {
+                            activeStepListeners.remove(listenerHash xor (Sensor.TYPE_STEP_COUNTER shl 16))
+                            activeStepListeners.remove(listenerHash xor (Sensor.TYPE_STEP_DETECTOR shl 16))
+                            activeStepListeners.remove(listenerHash)
+                        }
                     }
                 })
             }
@@ -583,24 +594,38 @@ class XposedEntry : IXposedHookLoadPackage {
                             event.values[0] = baseHardwareSteps + state.totalSteps.toFloat()
                         }
                     } else if (event.sensor.type == Sensor.TYPE_STEP_DETECTOR) {
+                        // 物理防串扰：若宿主 App 已注册 STEP_COUNTER，拦截系统真实硬件 STEP_DETECTOR 回调，杜绝真实物理微动与虚拟步数叠加导致步频翻倍
+                        val hasCounter = activeStepListeners.values.any { it.sensor.type == Sensor.TYPE_STEP_COUNTER && it.isAlive() }
+                        if (hasCounter) {
+                            param.result = null
+                            return
+                        }
                         if (event.values.isNotEmpty()) {
                             event.values[0] = 1.0f
                         }
                     } else if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
                         // 当目标运动 App 读取加速度计做实时步频分析与垂直振荡滤波时
-                        // 注入符合真实人体奔跑生理节拍的平滑三轴加速度波形，彻底消除 471 鬼畜步频与断续空图
+                        // 注入符合真实人体奔跑/健走生理节拍的平滑三轴加速度波形，彻底消除 471 鬼畜步频与断续空图
                         if (state.speed > 0.4f && state.cadenceSpm > 0 && event.values.size >= 3) {
-                            val cadence = state.cadenceSpm.coerceIn(110, 205)
-                            val freqHz = cadence / 60.0
+                            val cadence = state.cadenceSpm.coerceIn(80, 205)
+                            val stepFreqHz = cadence / 60.0
                             val tSec = (SystemClock.elapsedRealtimeNanos() % 100_000_000_000L) / 1_000_000_000.0
-                            val phase = 2.0 * Math.PI * freqHz * tSec
+                            val stepPhase = 2.0 * Math.PI * stepFreqHz * tSec
+                            val stridePhase = stepPhase * 0.5
 
-                            // Y 轴主垂直奔跑冲击波 (9.8m/s² 重力基底 + 3.2m/s² 垂直振荡)
-                            event.values[1] = (9.80665 + Math.sin(phase) * 3.2).toFloat()
-                            // X 轴左右迈步侧摆 (0.5m/s², 半频)
-                            event.values[0] = (Math.sin(phase * 0.5) * 0.5).toFloat()
-                            // Z 轴前后微幅倾角
-                            event.values[2] = (Math.cos(phase) * 0.8).toFloat()
+                            // 振幅自适应人体运动动力学：慢走 (1.3m/s) 垂直振荡仅 0.9m/s²，快跑 (3.5m/s) 达 2.4m/s²
+                            val vertAmp = when {
+                                state.speed <= 1.8f -> (0.6f + (state.speed - 0.4f) * 0.4f).coerceIn(0.6f, 1.2f)
+                                state.speed <= 3.5f -> (1.2f + (state.speed - 1.8f) * 0.7f).coerceIn(1.2f, 2.4f)
+                                else -> (2.4f + (state.speed - 3.5f) * 0.4f).coerceIn(2.4f, 3.2f)
+                            }
+
+                            // Y 轴主垂直运动冲击波 (9.80665 m/s² 重力基底 + 速度自适应垂直振荡)
+                            event.values[1] = (9.80665 + Math.sin(stepPhase) * vertAmp).toFloat()
+                            // X 轴左右迈步侧摆 (跨步半频，振幅 0.2~0.5m/s²)
+                            event.values[0] = (Math.sin(stridePhase) * (vertAmp * 0.25f)).toFloat()
+                            // Z 轴前后摆动与身体俯仰
+                            event.values[2] = (Math.cos(stepPhase) * (vertAmp * 0.35f)).toFloat()
                         }
                     }
                 }
@@ -1030,6 +1055,8 @@ class XposedEntry : IXposedHookLoadPackage {
                                 lastDispatchedStepCount = state.totalSteps
 
                                 val activeStepEntries = activeStepListeners.entries.toList()
+                                val hasCounterListener = activeStepEntries.any { it.value.sensor.type == Sensor.TYPE_STEP_COUNTER && it.value.isAlive() }
+
                                 for (entry in activeStepEntries) {
                                     val info = entry.value
                                     val listener = info.weakListener.get()
@@ -1047,6 +1074,10 @@ class XposedEntry : IXposedHookLoadPackage {
                                             }
                                         }
                                     } else if (info.sensor.type == Sensor.TYPE_STEP_DETECTOR) {
+                                        // 核心防冲突：若宿主 App 已注册 TYPE_STEP_COUNTER，严禁同时推送 STEP_DETECTOR，彻底消除双源计步导致的步频翻倍与步幅减半！
+                                        if (hasCounterListener) {
+                                            continue
+                                        }
                                         // 依据实际配速步数增量分发单步检测事件，严禁粗暴 1Hz 单步脉冲引发步频失真
                                         val h = info.targetHandler ?: mainHandler
                                         for (subStep in 1..stepDelta) {

@@ -466,7 +466,7 @@ class RouteSimulator(
             }
 
             val rawCadence = ((speedMps / dynamicStride) * 60.0).roundToInt()
-            val naturalCadence = rawCadence.coerceIn(95, 202)
+            val naturalCadence = rawCadence.coerceIn(80, 205)
 
             return Pair(dynamicStride, naturalCadence)
         }

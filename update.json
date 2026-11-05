@@ -1,9 +1,9 @@
 {
-  "versionCode": 10,
-  "versionName": "1.2.5",
-  "downloadUrl": "https://github.com/SyncPulseDev/LocationMockPro/releases/download/v1.2.5/app-release.apk",
-  "changelog": "1. 🏃 运动健康步态与加速度计三轴动力学重构：深度 Hook Sensor.TYPE_ACCELEROMETER，注入真实奔跑垂直冲击波 (9.8±3.2m/s²) 与左右摆动频率，彻底消除 Keep 步频飙升 471 SPM 及步幅萎缩至 40cm 异常\n2. 🏔️ 地理自然微地形海拔模型重塑：彻底告别 350m 周期机械过山车正弦波（消除 35m 巨幅落差），重塑为宏观坡道(波长1800m)+中观地形(650m)+微地表纹理(160m)的真实舒缓起伏\n3. ⚡ Gauss-Markov 低通平滑微抖动：引入一阶自回归电离层缓慢漂移模型，彻底消除帧间独立白噪声跳变引发的 2'16\" 尖锐超速毛刺\n4. 🔄 步态会话重置与离散事件均匀派发：启动/停止巡航自动清零步数缓存，支持根据实际配速动态离散分发 STEP_DETECTOR 与防污染累加",
-  "fileSize": 1605679,
+  "versionCode": 11,
+  "versionName": "1.2.6",
+  "downloadUrl": "https://github.com/SyncPulseDev/LocationMockPro/releases/download/v1.2.6/app-release.apk",
+  "changelog": "1. 🏃 彻底消除双源计步冲突与步数翻倍异常：引入智能主次传感器互斥机制（Single-source Step Arbiter），当应用注册 TYPE_STEP_COUNTER 时严格抑制次级 STEP_DETECTOR 模拟推送与真实物理硬件微动串扰，彻底根治 Keep 步频 231 SPM 翻倍与步幅 35cm 减半异常\n2. 🧬 人体运动学重力加速度平滑动态自适应：加速度计垂直振荡波幅由机械固定 3.2m/s² 优化为速度自适应拟合（慢走 0.9m/s²、快走 1.2m/s²、快跑 2.4m/s²），左右侧摆自动锁定双步跨步半频\n3. 🎯 步态生理学边界精细扩展：扩展低速健走步频下限至 80 SPM，在 12'22\" 慢速健走下完美呈现 114 SPM 与 71cm 真实人体步幅\n4. 🛡️ 传感器 Listener 复合 Hash 隔离：引入 SensorType 命名空间哈希隔离，杜绝多传感器注册覆盖与注销误伤",
+  "fileSize": 1605955,
   "publishDate": "2026-11-05",
   "forceUpdate": false
 }

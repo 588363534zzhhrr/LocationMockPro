@@ -2,7 +2,7 @@
 
 [![Android](https://img.shields.io/badge/Platform-Android%208.0%20~%2015%20(API%2026--35)-brightgreen.svg)](https://developer.android.com)
 [![Architecture Rating](https://img.shields.io/badge/Architecture%20Review-S%2B%20(Production--Ready)-success.svg)](https://github.com/SyncPulseDev/LocationMockPro)
-[![Version](https://img.shields.io/badge/Version-v1.2.5-blue.svg)](https://github.com/SyncPulseDev/LocationMockPro/releases)
+[![Version](https://img.shields.io/badge/Version-v1.2.6-blue.svg)](https://github.com/SyncPulseDev/LocationMockPro/releases)
 [![LSPosed](https://img.shields.io/badge/Module-LSPosed%20%2F%20Xposed%20Supported-purple.svg)](https://github.com/LSPosed/LSPosed)
 [![Kotlin](https://img.shields.io/badge/Language-Kotlin%202.0%2B-blue.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-purple.svg)](https://developer.android.com/jetpack/compose)
@@ -126,6 +126,16 @@ LocationMockPro/
 ---
 
 ## 📝 更新日志 (Changelog)
+
+### v1.2.6 (Build 11) - 2026-11-05
+- **🏃 彻底消除双源计步冲突与步频翻倍异常 (Single-source Step Arbiter)**：
+  - **主次传感器互斥机制**：针对 Keep / 悦跑圈同时监听 `TYPE_STEP_COUNTER` 与 `TYPE_STEP_DETECTOR` 导致的双重累加冲突，引入主次互斥调度器。在检测到 `TYPE_STEP_COUNTER` 活跃时，调度线程严格抑制次级 `TYPE_STEP_DETECTOR` 模拟脉冲，由权威硬件计步器独占派发，彻底根治 Keep 步频飙升至 231 SPM（实测翻倍）及步幅异常减半至 35cm 的生理学异常；
+  - **物理硬件真实微动阻断**：在位移模拟激活期间，若 `TYPE_STEP_COUNTER` 已接管步数，底层拦截物理硬件产生的微小真实 `STEP_DETECTOR` 回调，杜绝手持晃动导致的软硬件脉冲混淆累积；
+  - **SensorType 命名空间哈希隔离**：解决宿主同一 Listener 实例先后注册两类计步传感器时的 Map Key 覆盖与注销误伤隐患。
+- **🧬 人体运动学重力加速度平滑动态自适应**：
+  - 垂直冲击波幅摒弃固定 3.2m/s²，重构为随航速非线性自适应拟合：慢步走（1.35m/s）垂直振荡收敛至自然微幅 0.9m/s²，跑步自适应扩展至 2.4m/s²；左右迈步侧摆精准锁定双步跨步半频，Z 轴自适应俯仰。
+- **🎯 慢走生理学步频下限扩展**：
+  - 扩展低速健走步频自然区间至 80~205 SPM，在 12'22" 慢步走下输出 114 SPM 与 71cm 真实成人健走步态。
 
 ### v1.2.5 (Build 10) - 2026-11-05
 - **🏃 运动健康步态与加速度计三轴动力学重构 (`Sensor.TYPE_ACCELEROMETER`)**：
