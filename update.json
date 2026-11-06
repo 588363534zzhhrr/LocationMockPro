@@ -1,9 +1,9 @@
 {
-  "versionCode": 13,
-  "versionName": "1.2.8",
-  "downloadUrl": "https://github.com/SyncPulseDev/LocationMockPro/releases/download/v1.2.8/app-release.apk",
-  "changelog": "1. 🛡️ 阻断伪传感器内核句柄下穿（Handle 0 冲突彻底根除）：修复反射构造的 TYPE_STEP_COUNTER / STEP_DETECTOR 伪传感器 mHandle 默认 0 导致 Android 底层 SystemSensorManager 误将其作为硬件 3-axis Accelerometer（handle 0）直接绑入物理加速度计数据流的底层严重缺陷，分配独立虚拟负句柄并在 Java 层拦截下传；\n2. 🏃 多传感器计步融合防翻倍（独占单源仲裁）：针对运动世界校园等同时注册 TYPE_STEP_COUNTER、TYPE_STEP_DETECTOR 与 TYPE_ACCELEROMETER 的 App，建立单源独占仲裁体系。当权威 STEP_COUNTER 激活时，自动抑制 STEP_DETECTOR 脉冲分发，并令加速度计保持平稳重力基准 (0, 9.80665, 0)，彻底消除 App 内部三源叠加引发的 471/428 SPM 鬼畜步频与 20cm 碎步异常，步频精准锁定 115–120 SPM，步幅自然锁定 70–75cm；\n3. ⚡ 内存与跨进程派发深度优化：去除高频诊断日志，全面精简分发路径，提升模拟稳定性与抗风控表现。",
-  "fileSize": 1606523,
-  "publishDate": "2026-11-05",
+  "versionCode": 14,
+  "versionName": "1.2.9",
+  "downloadUrl": "https://github.com/SyncPulseDev/LocationMockPro/releases/download/v1.2.9/app-release.apk",
+  "changelog": "1. ✨ 现代流光玻璃拟态界面重构（Luminous Midnight Glassmorphism）：采用深邃星夜底色与随运行状态动态呼吸转换的极光散射光晕（Ambient Aurora Nebula），全面升级斜向高光折射毛玻璃卡片、顶部流光反射细线、5 色独立宝石微光轨迹工具箱磁贴与极光悬浮分段导航坞；\n2. 🚀 新增地图下方「悬浮流光速控舱」：在单点定位与路线巡航地图卡片正下方实时呈现锁止坐标或航线总里程（km），无需滚到底部即可一键启停单点模拟与路线巡航；\n3. 🗺️ 高德地图浮层与长轨迹折叠优化：搜索框、右侧工具按钮与提示条同步升级为深海毛玻璃与极光高亮样式，支持密集路点智能折叠与一键复制坐标，Release 安装包体积精简至 1.22 MB。",
+  "fileSize": 1276582,
+  "publishDate": "2026-11-06",
   "forceUpdate": false
 }

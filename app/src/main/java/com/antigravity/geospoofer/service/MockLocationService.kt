@@ -177,56 +177,6 @@ class MockLocationService : Service() {
     }
 
     /**
-     * 接收摇杆方向与强度，动态移动当前位置
-     * @param angleDegrees 方向角（0 为北，90 为东，180 为南，270 为西）
-     * @param intensity 摇杆推杆力度（0.0 ~ 1.0）
-     */
-    fun onJoystickMove(angleDegrees: Float, intensity: Float) {
-        if (!engine.isRunning) {
-            engine.start()
-        }
-
-        val speed = routeSimulator.customSpeedMps * intensity
-        // 假设摇杆刷新间隔大约为 200ms
-        val stepDistance = (speed * 0.2).toDouble()
-
-        val nextPoint = CoordinateUtils.movePoint(
-            engine.currentLatitude,
-            engine.currentLongitude,
-            stepDistance,
-            angleDegrees
-        )
-
-        engine.updateLocation(
-            nextPoint.latitude,
-            nextPoint.longitude,
-            speed = speed,
-            bearing = angleDegrees
-        )
-    }
-
-    /**
-     * 单击四向微调点位（步进 1~3 米微移，适用于精准打卡与宝可梦微操）
-     */
-    fun nudgeLocation(bearingDegrees: Float, distanceMeters: Double = 2.0) {
-        if (!engine.isRunning) {
-            engine.start()
-        }
-        val nextPoint = CoordinateUtils.movePoint(
-            engine.currentLatitude,
-            engine.currentLongitude,
-            distanceMeters,
-            bearingDegrees
-        )
-        engine.updateLocation(
-            nextPoint.latitude,
-            nextPoint.longitude,
-            speed = 1.0f,
-            bearing = bearingDegrees
-        )
-    }
-
-    /**
      * 心跳定时器：静止状态下高频推送坐标（默认 250ms 高频防跳模式），确保系统定位缓存不会过期恢复真实位置
      */
     private fun startHeartbeat() {

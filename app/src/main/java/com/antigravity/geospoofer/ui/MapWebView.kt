@@ -21,7 +21,10 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.Dp
@@ -30,12 +33,13 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.antigravity.geospoofer.core.CoordinateUtils
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.concurrent.ConcurrentLinkedQueue
 
 class MapController {
     var webView: WebView? = null
-    var isReady: Boolean = false
+    var isReady by mutableStateOf(false)
     var currentCenter: CoordinateUtils.LatLng? = null
-    private val pendingCommands = mutableListOf<String>()
+    private val pendingCommands = ConcurrentLinkedQueue<String>()
 
     fun executeJs(js: String) {
         val wv = webView
@@ -48,10 +52,10 @@ class MapController {
 
     fun onReady() {
         isReady = true
-        pendingCommands.forEach { js ->
+        while (true) {
+            val js = pendingCommands.poll() ?: break
             webView?.post { webView?.evaluateJavascript(js, null) }
         }
-        pendingCommands.clear()
     }
 
     fun setMode(mode: String) {
@@ -160,20 +164,30 @@ fun InteractiveMapCard(
     onToggleExpand: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val mapShape = RoundedCornerShape(22.dp)
     androidx.compose.material3.Surface(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
             .animateContentSize(),
-        shape = RoundedCornerShape(18.dp),
+        shape = mapShape,
         color = com.antigravity.geospoofer.ui.theme.DarkCard,
-        border = androidx.compose.foundation.BorderStroke(1.dp, com.antigravity.geospoofer.ui.theme.DarkCardBorder),
-        shadowElevation = 4.dp
+        shadowElevation = 12.dp,
+        border = androidx.compose.foundation.BorderStroke(
+            1.2.dp,
+            androidx.compose.ui.graphics.Brush.linearGradient(
+                colors = listOf(
+                    com.antigravity.geospoofer.ui.theme.TechCyanLight.copy(alpha = 0.45f),
+                    androidx.compose.ui.graphics.Color.White.copy(alpha = 0.12f),
+                    com.antigravity.geospoofer.ui.theme.TechBlue.copy(alpha = 0.35f)
+                )
+            )
+        )
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(18.dp))
+                .clip(mapShape)
         ) {
             AndroidView(
                 factory = { context ->

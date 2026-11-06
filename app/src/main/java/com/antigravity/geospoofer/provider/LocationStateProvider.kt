@@ -3,11 +3,13 @@ package com.antigravity.geospoofer.provider
 import android.content.ContentProvider
 import android.content.ContentValues
 import android.content.Context
-import android.content.SharedPreferences
 import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
 import android.os.Bundle
+import java.io.File
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * 跨进程定位、步数遥测与环境无线电指纹状态 Provider
@@ -37,6 +39,9 @@ class LocationStateProvider : ContentProvider() {
                     result.putDouble(KEY_ALTITUDE, altitude)
                     result.putFloat(KEY_SPEED, speed)
                     result.putFloat(KEY_BEARING, bearing)
+                    result.putFloat(KEY_ACCURACY, accuracy)
+                    result.putInt(KEY_SATELLITES, satellites)
+                    result.putFloat(KEY_MEAN_CN0, meanCn0)
                     result.putLong(KEY_TOTAL_STEPS, totalSteps)
                     result.putInt(KEY_CADENCE, cadenceSpm)
                     result.putLong(KEY_TIMESTAMP, timestamp)
@@ -71,7 +76,8 @@ class LocationStateProvider : ContentProvider() {
         return try {
             val columns = arrayOf(
                 KEY_IS_MOCKING, KEY_LATITUDE, KEY_LONGITUDE, KEY_ALTITUDE,
-                KEY_SPEED, KEY_BEARING, KEY_TOTAL_STEPS, KEY_CADENCE, KEY_TIMESTAMP,
+                KEY_SPEED, KEY_BEARING, KEY_ACCURACY, KEY_SATELLITES, KEY_MEAN_CN0,
+                KEY_TOTAL_STEPS, KEY_CADENCE, KEY_TIMESTAMP,
                 KEY_WIFI_MOCK_ENABLED, KEY_WIFI_SSID, KEY_WIFI_BSSID, KEY_WIFI_RSSI,
                 KEY_CELL_MOCK_ENABLED, KEY_CELL_MCC, KEY_CELL_MNC, KEY_CELL_LAC, KEY_CELL_CID
             )
@@ -80,7 +86,8 @@ class LocationStateProvider : ContentProvider() {
                 cursor.addRow(
                     arrayOf(
                         if (isMocking) 1 else 0, latitude, longitude, altitude,
-                        speed, bearing, totalSteps, cadenceSpm, timestamp,
+                        speed, bearing, accuracy, satellites, meanCn0,
+                        totalSteps, cadenceSpm, timestamp,
                         if (wifiMockEnabled) 1 else 0, wifiSsid, wifiBssid, wifiRssi,
                         if (cellMockEnabled) 1 else 0, cellMcc, cellMnc, cellLac, cellCid
                     )
@@ -91,6 +98,7 @@ class LocationStateProvider : ContentProvider() {
             null
         }
     }
+
     override fun getType(uri: Uri): String? = "vnd.android.cursor.dir/vnd.com.antigravity.geospoofer.state"
     override fun insert(uri: Uri, values: ContentValues?): Uri? = null
     override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int = 0
@@ -106,6 +114,9 @@ class LocationStateProvider : ContentProvider() {
         const val KEY_ALTITUDE = "altitude"
         const val KEY_SPEED = "speed"
         const val KEY_BEARING = "bearing"
+        const val KEY_ACCURACY = "accuracy"
+        const val KEY_SATELLITES = "satellites"
+        const val KEY_MEAN_CN0 = "mean_cn0"
         const val KEY_TOTAL_STEPS = "total_steps"
         const val KEY_CADENCE = "cadence_spm"
         const val KEY_TIMESTAMP = "timestamp"
@@ -122,8 +133,15 @@ class LocationStateProvider : ContentProvider() {
         const val KEY_CELL_CID = "cell_cid"
 
         private const val PREFS_NAME = "location_mock_pro_stealth_prefs"
+        private const val PERSIST_THROTTLE_MS = 1000L
 
         private val stateLock = Any()
+        private val persistExecutor = Executors.newSingleThreadExecutor { r ->
+            Thread(r, "StatePersistIo").apply { isDaemon = true }
+        }
+        private val isPersistPending = AtomicBoolean(false)
+        @Volatile private var lastPersistTimeMs: Long = 0L
+
         private var instance: LocationStateProvider? = null
         private var appContext: Context? = null
 
@@ -133,6 +151,9 @@ class LocationStateProvider : ContentProvider() {
         @Volatile var altitude: Double = 35.0
         @Volatile var speed: Float = 0f
         @Volatile var bearing: Float = 0f
+        @Volatile var accuracy: Float = 3.2f
+        @Volatile var satellites: Int = 16
+        @Volatile var meanCn0: Float = 33.5f
         @Volatile var totalSteps: Long = 0L
         @Volatile var cadenceSpm: Int = 0
         @Volatile var timestamp: Long = System.currentTimeMillis()
@@ -174,18 +195,26 @@ class LocationStateProvider : ContentProvider() {
             alt: Double,
             spd: Float,
             brg: Float,
+            acc: Float = 3.2f,
+            sats: Int = 16,
+            cn0: Float = 33.5f,
             active: Boolean = true
         ) {
+            val stateChanged: Boolean
             synchronized(stateLock) {
+                stateChanged = (isMocking != active)
                 latitude = lat
                 longitude = lon
                 altitude = alt
                 speed = spd
                 bearing = brg
+                accuracy = acc
+                satellites = sats
+                meanCn0 = cn0
                 isMocking = active
                 timestamp = System.currentTimeMillis()
             }
-            persistStateToPrefs()
+            schedulePersistToPrefs(forceImmediate = stateChanged)
         }
 
         /**
@@ -196,7 +225,7 @@ class LocationStateProvider : ContentProvider() {
                 totalSteps = steps
                 cadenceSpm = cadence
             }
-            persistStateToPrefs()
+            schedulePersistToPrefs(forceImmediate = false)
         }
 
         /**
@@ -207,51 +236,68 @@ class LocationStateProvider : ContentProvider() {
                 totalSteps = 0L
                 cadenceSpm = 0
             }
-            persistStateToPrefs()
+            schedulePersistToPrefs(forceImmediate = true)
         }
 
         /**
-         * 同步写入持久化 SharedPreferences 供 LSPosed 原生 XSharedPreferences 无缝兜底读取
+         * 节流异步持久化至 SharedPreferences（供 LSPosed Tier 3 XSharedPreferences 兜底读取）
+         * 避免 4Hz/350ms 高频循环每次全量写盘造成主线程 QueuedWork 阻塞与闪存磨损，
+         * 并在 commit() 落盘完成后再设置全局可读权限，解决 apply() 异步重命名重置文件权限的时序缺陷。
          */
-        private fun persistStateToPrefs() {
-            try {
-                val ctx = appContext ?: return
-                val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                prefs.edit().apply {
-                    putBoolean(KEY_IS_MOCKING, isMocking)
-                    putString("latitude_str", latitude.toString())
-                    putString("longitude_str", longitude.toString())
-                    putString("altitude_str", altitude.toString())
-                    putFloat("latitude_f", latitude.toFloat())
-                    putFloat("longitude_f", longitude.toFloat())
-                    putFloat("altitude_f", altitude.toFloat())
-                    putFloat(KEY_SPEED, speed)
-                    putFloat(KEY_BEARING, bearing)
-                    putLong(KEY_TOTAL_STEPS, totalSteps)
-                    putInt(KEY_CADENCE, cadenceSpm)
-                    putLong(KEY_TIMESTAMP, timestamp)
-                    putBoolean(KEY_WIFI_MOCK_ENABLED, wifiMockEnabled)
-                    putString(KEY_WIFI_SSID, wifiSsid)
-                    putString(KEY_WIFI_BSSID, wifiBssid)
-                    putInt(KEY_WIFI_RSSI, wifiRssi)
-                    putBoolean(KEY_CELL_MOCK_ENABLED, cellMockEnabled)
-                    putInt(KEY_CELL_MCC, cellMcc)
-                    putInt(KEY_CELL_MNC, cellMnc)
-                    putInt(KEY_CELL_LAC, cellLac)
-                    putInt(KEY_CELL_CID, cellCid)
-                    apply()
-                }
-
-                // 显式授予 shared_prefs 全局可读权限，穿透 Linux DAC 权限隔离，使 LSPosed Tier 3 XSharedPreferences 真正生效
+        private fun schedulePersistToPrefs(forceImmediate: Boolean) {
+            val now = System.currentTimeMillis()
+            if (!forceImmediate && now - lastPersistTimeMs < PERSIST_THROTTLE_MS) {
+                return
+            }
+            if (!forceImmediate && !isPersistPending.compareAndSet(false, true)) {
+                return
+            }
+            lastPersistTimeMs = now
+            persistExecutor.execute {
                 try {
-                    val prefsFile = java.io.File(ctx.applicationInfo.dataDir, "shared_prefs/${PREFS_NAME}.xml")
+                    val ctx = appContext ?: return@execute
+                    val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    val editor = prefs.edit()
+                    synchronized(stateLock) {
+                        editor.putBoolean(KEY_IS_MOCKING, isMocking)
+                        editor.putString("latitude_str", latitude.toString())
+                        editor.putString("longitude_str", longitude.toString())
+                        editor.putString("altitude_str", altitude.toString())
+                        editor.putFloat("latitude_f", latitude.toFloat())
+                        editor.putFloat("longitude_f", longitude.toFloat())
+                        editor.putFloat("altitude_f", altitude.toFloat())
+                        editor.putFloat(KEY_SPEED, speed)
+                        editor.putFloat(KEY_BEARING, bearing)
+                        editor.putFloat(KEY_ACCURACY, accuracy)
+                        editor.putInt(KEY_SATELLITES, satellites)
+                        editor.putFloat(KEY_MEAN_CN0, meanCn0)
+                        editor.putLong(KEY_TOTAL_STEPS, totalSteps)
+                        editor.putInt(KEY_CADENCE, cadenceSpm)
+                        editor.putLong(KEY_TIMESTAMP, timestamp)
+                        editor.putBoolean(KEY_WIFI_MOCK_ENABLED, wifiMockEnabled)
+                        editor.putString(KEY_WIFI_SSID, wifiSsid)
+                        editor.putString(KEY_WIFI_BSSID, wifiBssid)
+                        editor.putInt(KEY_WIFI_RSSI, wifiRssi)
+                        editor.putBoolean(KEY_CELL_MOCK_ENABLED, cellMockEnabled)
+                        editor.putInt(KEY_CELL_MCC, cellMcc)
+                        editor.putInt(KEY_CELL_MNC, cellMnc)
+                        editor.putInt(KEY_CELL_LAC, cellLac)
+                        editor.putInt(KEY_CELL_CID, cellCid)
+                    }
+                    editor.commit()
+
+                    // 在 commit() 落盘后授予 shared_prefs 全局可读权限，确保 rename 后的新 XML 文件权限不被重置
+                    val prefsFile = File(ctx.applicationInfo.dataDir, "shared_prefs/${PREFS_NAME}.xml")
                     if (prefsFile.exists()) {
                         prefsFile.setReadable(true, false)
                         prefsFile.parentFile?.setReadable(true, false)
                         prefsFile.parentFile?.setExecutable(true, false)
                     }
-                } catch (_: Throwable) {}
-            } catch (_: Throwable) {}
+                } catch (_: Throwable) {
+                } finally {
+                    isPersistPending.set(false)
+                }
+            }
         }
 
         /**
@@ -264,13 +310,7 @@ class LocationStateProvider : ContentProvider() {
                 wifiBssid = bssid
                 wifiRssi = rssi
             }
-            appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)?.edit()?.apply {
-                putBoolean(KEY_WIFI_MOCK_ENABLED, enabled)
-                putString(KEY_WIFI_SSID, ssid)
-                putString(KEY_WIFI_BSSID, bssid)
-                putInt(KEY_WIFI_RSSI, rssi)
-                apply()
-            }
+            schedulePersistToPrefs(forceImmediate = true)
         }
 
         /**
@@ -284,14 +324,7 @@ class LocationStateProvider : ContentProvider() {
                 cellLac = lac
                 cellCid = cid
             }
-            appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)?.edit()?.apply {
-                putBoolean(KEY_CELL_MOCK_ENABLED, enabled)
-                putInt(KEY_CELL_MCC, mcc)
-                putInt(KEY_CELL_MNC, mnc)
-                putInt(KEY_CELL_LAC, lac)
-                putInt(KEY_CELL_CID, cid)
-                apply()
-            }
+            schedulePersistToPrefs(forceImmediate = true)
         }
 
         /**
@@ -305,7 +338,7 @@ class LocationStateProvider : ContentProvider() {
                     null,
                     null
                 )
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 null
             }
         }

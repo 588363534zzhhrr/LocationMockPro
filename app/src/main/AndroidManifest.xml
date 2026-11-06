@@ -10,11 +10,10 @@
     <!-- 系统级模拟提供者权限（若刷入为 /system/priv-app 或系统特权应用时生效） -->
     <uses-permission android:name="android.permission.INSTALL_LOCATION_PROVIDER" tools:ignore="ProtectedPermissions" />
 
-    <!-- 前台服务与系统悬浮窗 -->
+    <!-- 前台服务与唤醒锁 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- 地图网络瓦片加载与自动更新 -->
@@ -72,12 +71,6 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="location" />
-
-        <!-- 悬浮窗摇杆服务 -->
-        <service
-            android:name=".service.FloatingJoystickService"
-            android:enabled="true"
-            android:exported="false" />
 
         <!-- 跨进程状态共享 Provider（供 LSPosed Hook 模块在目标进程实时读取模拟位置与计步数据） -->
         <provider

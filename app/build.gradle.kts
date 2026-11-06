@@ -12,8 +12,8 @@ android {
         applicationId = "com.antigravity.geospoofer"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "1.2.8"
+        versionCode = 14
+        versionName = "1.2.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -24,7 +24,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
-            isShrinkResources = false
+            isShrinkResources = true
             signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

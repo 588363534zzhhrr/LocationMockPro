@@ -114,35 +114,19 @@ object RouteStorageHelper {
     /**
      * 导出为国际通用 GPX 1.1 XML 格式
      */
-    fun exportToGpx(name: String, waypoints: List<CoordinateUtils.LatLng>): String {
-        val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
-        val timeStr = sdf.format(Date())
-
-        val sb = StringBuilder()
-        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
-        sb.append("<gpx version=\"1.1\" creator=\"LocationMockPro\" xmlns=\"http://www.topografix.com/GPX/1/1\">\n")
-        sb.append("  <metadata>\n")
-        sb.append("    <name>").append(name).append("</name>\n")
-        sb.append("    <time>").append(timeStr).append("</time>\n")
-        sb.append("  </metadata>\n")
-        sb.append("  <trk>\n")
-        sb.append("    <name>").append(name).append("</name>\n")
-        sb.append("    <trkseg>\n")
-
-        waypoints.forEach { pt ->
-            sb.append("      <trkpt lat=\"").append(pt.latitude).append("\" lon=\"").append(pt.longitude).append("\" />\n")
-        }
-
-        sb.append("    </trkseg>\n")
-        sb.append("  </trk>\n")
-        sb.append("</gpx>")
-        return sb.toString()
+    fun exportToGpx(name: String, waypoints: List<CoordinateUtils.LatLng>, isGcj02Input: Boolean = true): String {
+        return GpxExportHelper.generateGpxString(
+            waypoints = waypoints,
+            routeName = name,
+            isGcj02Input = isGcj02Input
+        )
     }
 
     /**
      * 解析 GPX / KML 格式字符串获取途经点列表（兼容 trkpt、wpt、rtept 及 KML 航线坐标）
+     * @param convertToGcj02 若当前处于火星坐标模式，将国际标准 GPX/KML 的 WGS-84 坐标自动纠偏至 GCJ-02
      */
-    fun importFromGpx(gpxXml: String): List<CoordinateUtils.LatLng> {
+    fun importFromGpx(gpxXml: String, convertToGcj02: Boolean = false): List<CoordinateUtils.LatLng> {
         val points = mutableListOf<CoordinateUtils.LatLng>()
         // 1. 匹配标准 GPX <trkpt lat="..." lon="...">、<wpt ...> 以及 <rtept ...>
         val pattern = """<(?:trkpt|wpt|rtept)\s+[^>]*lat=["']([-0-9.]+)["'][^>]*lon=["']([-0-9.]+)["']""".toRegex(RegexOption.IGNORE_CASE)
@@ -188,6 +172,10 @@ object RouteStorageHelper {
             }
         }
 
-        return points
+        return if (convertToGcj02) {
+            points.map { CoordinateUtils.wgs84ToGcj02(it.latitude, it.longitude) }
+        } else {
+            points
+        }
     }
 }

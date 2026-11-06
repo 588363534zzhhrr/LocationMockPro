@@ -32,8 +32,6 @@ fun EngineDefenseTab(
     onGrantMockViaRoot: () -> Unit,
     isIgnoringBattery: Boolean,
     onRequestIgnoreBattery: () -> Unit,
-    joystickEnabled: Boolean,
-    onToggleJoystick: (Boolean) -> Unit,
     onOpenAuditDialog: () -> Unit,
     isAntiJumpHighFreq: Boolean,
     onSetAntiJumpHighFreq: (Boolean) -> Unit,
@@ -73,19 +71,20 @@ fun EngineDefenseTab(
     ) {
         // 1. 系统权限与环境常驻卡片
         GlassCard(
+            accentGlowColor = if (isRooted) TechEmerald else TechBlue,
             contentPadding = PaddingValues(16.dp)
         ) {
             TechSectionHeader(
                 title = "系统底座与保活常驻",
                 icon = if (isRooted) Icons.Default.Security else Icons.Default.Shield,
-                iconTint = if (isRooted) AppleGreen else AppleBlue,
+                iconTint = if (isRooted) TechEmeraldLight else TechCyanLight,
                 badgeText = if (isRooted) "ROOT 提权" else "免 ROOT 模式",
-                badgeColor = if (isRooted) AppleGreen else AppleBlue,
+                badgeColor = if (isRooted) TechEmeraldLight else TechCyanLight,
                 actionSlot = if (isRooted) {
                     {
                         Button(
                             onClick = onGrantMockViaRoot,
-                            colors = ButtonDefaults.buttonColors(containerColor = AppleBlue),
+                            colors = ButtonDefaults.buttonColors(containerColor = TechBlue),
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                             modifier = Modifier.height(30.dp)
@@ -143,24 +142,11 @@ fun EngineDefenseTab(
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider(color = AppleDivider, thickness = 0.5.dp)
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // 全局灵动悬浮窗
-            SettingToggleRow(
-                title = "全局灵动悬浮控制岛",
-                description = "悬浮在第三方应用上方实时监控里程时速与方向摇杆",
-                checked = joystickEnabled,
-                onCheckedChange = onToggleJoystick,
-                icon = Icons.Default.FilterFrames,
-                iconColor = AppleBlue
-            )
         }
 
         // 2. 六维防检测体检中心
         GlassCard(
+            accentGlowColor = TechEmerald,
             contentPadding = PaddingValues(16.dp)
         ) {
             Row(
@@ -174,35 +160,37 @@ fun EngineDefenseTab(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Surface(
-                        shape = CircleShape,
-                        color = AppleGreen.copy(alpha = 0.15f),
-                        modifier = Modifier.size(36.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        color = TechEmerald.copy(alpha = 0.18f),
+                        border = BorderStroke(0.8.dp, TechEmeraldLight.copy(alpha = 0.4f)),
+                        modifier = Modifier.size(40.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = AppleGreen, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = TechEmeraldLight, modifier = Modifier.size(21.dp))
                         }
                     }
                     Column {
-                        Text("六维防检测深度体检", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                        Text("六维防检测深度体检", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                         Spacer(modifier = Modifier.height(2.dp))
                         Text("钉钉、企业微信、Keep 等风控特征深度审计", fontSize = 11.sp, color = TextSecondary)
                     }
                 }
                 Button(
                     onClick = onOpenAuditDialog,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppleCardSubtle),
-                    border = BorderStroke(0.5.dp, AppleBorder),
+                    colors = ButtonDefaults.buttonColors(containerColor = TechEmerald.copy(alpha = 0.22f)),
+                    border = BorderStroke(0.8.dp, TechEmeraldLight.copy(alpha = 0.5f)),
                     shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
                     modifier = Modifier.height(34.dp)
                 ) {
-                    Text("开始体检", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppleBlue)
+                    Text("开始体检", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TechEmeraldLight)
                 }
             }
         }
 
         // 3. 高德防跳专区 (AMap Anti-Jump)
         GlassCard(
+            accentGlowColor = TechAmber,
             contentPadding = PaddingValues(16.dp)
         ) {
             Column(
@@ -219,16 +207,17 @@ fun EngineDefenseTab(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Surface(
-                            shape = CircleShape,
-                            color = AppleOrange.copy(alpha = 0.15f),
-                            modifier = Modifier.size(36.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            color = TechAmber.copy(alpha = 0.18f),
+                            border = BorderStroke(0.8.dp, TechAmberLight.copy(alpha = 0.4f)),
+                            modifier = Modifier.size(40.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.Bolt, contentDescription = null, tint = AppleOrange, modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Bolt, contentDescription = null, tint = TechAmberLight, modifier = Modifier.size(21.dp))
                             }
                         }
                         Column {
-                            Text("高德基站防跳 4Hz 脉冲压制", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                            Text("高德基站防跳 4Hz 脉冲压制", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                             Spacer(modifier = Modifier.height(2.dp))
                             Text("250ms 高频虚拟脉冲强行覆盖基站信号", fontSize = 11.sp, color = TextSecondary)
                         }
@@ -241,10 +230,10 @@ fun EngineDefenseTab(
                         },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
-                            checkedTrackColor = AppleGreen,
+                            checkedTrackColor = TechEmerald,
                             uncheckedThumbColor = TextTertiary,
-                            uncheckedTrackColor = AppleCardSubtle,
-                            uncheckedBorderColor = Color.Transparent
+                            uncheckedTrackColor = DarkInputBg,
+                            uncheckedBorderColor = Color.White.copy(alpha = 0.14f)
                         )
                     )
                 }
@@ -257,11 +246,11 @@ fun EngineDefenseTab(
                         onClick = onOpenAntiJumpGuide,
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(0.5.dp, AppleBorder),
-                        colors = ButtonDefaults.outlinedButtonColors(containerColor = AppleCardSubtle),
+                        border = BorderStroke(0.8.dp, TechAmberLight.copy(alpha = 0.35f)),
+                        colors = ButtonDefaults.outlinedButtonColors(containerColor = DarkInputBg),
                         contentPadding = PaddingValues(vertical = 8.dp)
                     ) {
-                        Icon(Icons.Default.MenuBook, contentDescription = null, tint = AppleBlue, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.MenuBook, contentDescription = null, tint = TechAmberLight, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("防跳排查指南", fontSize = 11.sp, color = TextPrimary)
                     }
@@ -270,11 +259,11 @@ fun EngineDefenseTab(
                         onClick = onOpenLocationSettings,
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(0.5.dp, AppleBorder),
-                        colors = ButtonDefaults.outlinedButtonColors(containerColor = AppleCardSubtle),
+                        border = BorderStroke(0.8.dp, TechCyanLight.copy(alpha = 0.35f)),
+                        colors = ButtonDefaults.outlinedButtonColors(containerColor = DarkInputBg),
                         contentPadding = PaddingValues(vertical = 8.dp)
                     ) {
-                        Icon(Icons.Default.Settings, contentDescription = null, tint = AppleBlue, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.Settings, contentDescription = null, tint = TechCyanLight, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("关闭系统扫描", fontSize = 11.sp, color = TextPrimary)
                     }
@@ -284,12 +273,15 @@ fun EngineDefenseTab(
 
         // 4. 动力学物理状态机与高拟真算法
         GlassCard(
+            accentGlowColor = TechPurple,
             contentPadding = PaddingValues(16.dp)
         ) {
             TechSectionHeader(
                 title = "物理动力学与拟真状态机",
                 icon = Icons.Default.Timeline,
-                iconTint = AppleBlue
+                iconTint = TechPurpleLight,
+                badgeText = "5 维拟真",
+                badgeColor = TechPurpleLight
             )
             Spacer(modifier = Modifier.height(14.dp))
 
@@ -300,7 +292,7 @@ fun EngineDefenseTab(
                 checked = enableJitter,
                 onCheckedChange = onSetJitterEnabled,
                 icon = Icons.Default.Grain,
-                iconColor = AppleBlue
+                iconColor = TechCyanLight
             )
 
             if (enableJitter) {
@@ -316,7 +308,7 @@ fun EngineDefenseTab(
                             isSelected = isSelected,
                             onClick = { onSetJitterProfile(prof) },
                             modifier = Modifier.weight(1f),
-                            activeColor = AppleBlue,
+                            activeColor = TechCyan,
                             activeTextColor = Color.White
                         )
                     }
@@ -334,7 +326,7 @@ fun EngineDefenseTab(
                 checked = enablePhysiologicalGait,
                 onCheckedChange = onSetPhysiologicalGait,
                 icon = Icons.Default.DirectionsWalk,
-                iconColor = AppleBlue
+                iconColor = TechEmeraldLight
             )
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -348,7 +340,7 @@ fun EngineDefenseTab(
                 checked = enableRandomStops,
                 onCheckedChange = onSetRandomStops,
                 icon = Icons.Default.Traffic,
-                iconColor = AppleBlue
+                iconColor = TechAmberLight
             )
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -362,7 +354,7 @@ fun EngineDefenseTab(
                 checked = enableFatigueCurve,
                 onCheckedChange = onSetFatigueCurve,
                 icon = Icons.Default.TrendingDown,
-                iconColor = AppleBlue
+                iconColor = TechPurpleLight
             )
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -376,23 +368,24 @@ fun EngineDefenseTab(
                 checked = enableTerrainElevation,
                 onCheckedChange = onSetTerrainElevation,
                 icon = Icons.Default.Landscape,
-                iconColor = AppleBlue
+                iconColor = TechBlueLight
             )
         }
 
         // 5. 无线电环境指纹伪装
         GlassCard(
+            accentGlowColor = TechCyan,
             contentPadding = PaddingValues(16.dp)
         ) {
             TechSectionHeader(
                 title = "无线电环境指纹伪装",
                 icon = Icons.Default.Wifi,
-                iconTint = AppleBlue,
+                iconTint = TechCyanLight,
                 actionSlot = {
                     Button(
                         onClick = onOpenRadioSpoofDialog,
                         shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppleBlue),
+                        colors = ButtonDefaults.buttonColors(containerColor = TechBlue),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                         modifier = Modifier.height(30.dp)
                     ) {
@@ -406,26 +399,27 @@ fun EngineDefenseTab(
                     "已激活: ${if (LocationStateProvider.wifiMockEnabled) "Wi-Fi (${LocationStateProvider.wifiSsid}) " else ""}${if (LocationStateProvider.cellMockEnabled) "基站 (CID:${LocationStateProvider.cellCid})" else ""}"
                 else "伪装企业 Wi-Fi 与移动基站，杜绝打卡风控环境比对",
                 fontSize = 11.sp,
-                color = if (LocationStateProvider.wifiMockEnabled) AppleBlue else TextSecondary
+                color = if (LocationStateProvider.wifiMockEnabled) TechCyanLight else TextSecondary
             )
         }
 
         // 6. NMEA-0183 硬件卫星数据流终端
         GlassCard(
+            accentGlowColor = TechEmerald,
             contentPadding = PaddingValues(16.dp)
         ) {
             TechSectionHeader(
                 title = "NMEA-0183 硬件卫星终端",
                 icon = Icons.Default.Terminal,
-                iconTint = AppleBlue,
+                iconTint = TechEmeraldLight,
                 badgeText = if (liveRmc.isNotBlank()) "实时推流" else "待命中",
-                badgeColor = if (liveRmc.isNotBlank()) AppleGreen else TextSecondary,
+                badgeColor = if (liveRmc.isNotBlank()) TechEmeraldLight else TextSecondary,
                 actionSlot = {
                     TextButton(
                         onClick = onToggleNmeaTerminal,
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                     ) {
-                        Text(if (showNmeaTerminal) "收起终端" else "展开终端", fontSize = 11.sp, color = AppleBlue, fontWeight = FontWeight.SemiBold)
+                        Text(if (showNmeaTerminal) "收起终端" else "展开终端", fontSize = 11.sp, color = TechCyanLight, fontWeight = FontWeight.SemiBold)
                     }
                 }
             )

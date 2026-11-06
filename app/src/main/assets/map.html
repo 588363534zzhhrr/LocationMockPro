@@ -19,7 +19,7 @@
     #map {
       height: 100%;
       width: 100%;
-      background: #000000;
+      background: #070B14;
     }
 
     /* Top Search Container & Autocomplete Dropdown */
@@ -34,13 +34,13 @@
     .search-box {
       display: flex;
       align-items: center;
-      background: rgba(28, 28, 30, 0.92);
-      border-radius: 12px;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      background: rgba(15, 23, 42, 0.88);
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
       padding: 4px 6px;
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 0.5px solid rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, 0.16);
       position: relative;
     }
     .search-input {
@@ -51,35 +51,36 @@
       flex: 1;
       min-width: 0;
       background: transparent;
-      color: #f2f2f7;
+      color: #f8fafc;
       font-weight: 500;
     }
     .search-input::placeholder {
-      color: #8e8e93;
+      color: #94a3b8;
       font-size: 12px;
     }
     .search-clear-btn {
       background: transparent;
       border: none;
-      color: #8e8e93;
+      color: #94a3b8;
       font-size: 13px;
       padding: 4px 6px;
       cursor: pointer;
       line-height: 1;
     }
     .search-clear-btn:active {
-      color: #f2f2f7;
+      color: #f8fafc;
     }
     .search-btn {
-      background: #0A84FF;
+      background: linear-gradient(135deg, #2563EB, #06B6D4);
       color: white;
-      border: none;
-      border-radius: 8px;
-      padding: 6px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-radius: 10px;
+      padding: 6px 11px;
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 700;
       cursor: pointer;
       white-space: nowrap;
+      box-shadow: 0 2px 10px rgba(6, 182, 212, 0.35);
       transition: opacity 0.15s;
     }
     .search-btn:active {
@@ -91,7 +92,7 @@
       font-size: 14px;
       padding: 4px 5px;
       cursor: pointer;
-      color: #8e8e93;
+      color: #94a3b8;
       line-height: 1;
     }
 
@@ -101,12 +102,12 @@
       top: 48px;
       left: 0;
       width: 100%;
-      background: rgba(28, 28, 30, 0.96);
-      border-radius: 12px;
-      box-shadow: 0 12px 32px rgba(0,0,0,0.65);
-      border: 0.5px solid rgba(255, 255, 255, 0.15);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
+      background: rgba(15, 23, 42, 0.95);
+      border-radius: 14px;
+      box-shadow: 0 14px 36px rgba(0,0,0,0.75);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
       overflow: hidden;
       max-height: 320px;
       display: flex;
@@ -351,29 +352,31 @@
       gap: 6px;
     }
     .ctrl-btn {
-      background: rgba(28, 28, 30, 0.88);
-      border: 0.5px solid rgba(255, 255, 255, 0.15);
-      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.86);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 11px;
       padding: 6px 10px;
       font-size: 11px;
       font-weight: 600;
-      color: #f2f2f7;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      color: #f8fafc;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 5px;
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      transition: all 0.15s ease;
     }
     .ctrl-btn:active {
-      background: rgba(44, 44, 46, 0.95);
-      transform: scale(0.96);
+      background: rgba(30, 41, 59, 0.95);
+      transform: scale(0.95);
     }
     .ctrl-btn.active-btn {
-      background: #0A84FF;
+      background: linear-gradient(135deg, #2563EB, #06B6D4);
       color: #FFFFFF;
-      border-color: transparent;
+      border-color: rgba(255, 255, 255, 0.35);
+      box-shadow: 0 4px 14px rgba(6, 182, 212, 0.45);
     }
 
     /* Bottom hint banner */
@@ -383,18 +386,18 @@
       left: 50%;
       transform: translateX(-50%);
       z-index: 1000;
-      background: rgba(28, 28, 30, 0.92);
-      color: #f2f2f7;
-      border: 0.5px solid rgba(255, 255, 255, 0.15);
+      background: rgba(15, 23, 42, 0.88);
+      color: #e2e8f0;
+      border: 1px solid rgba(56, 189, 248, 0.30);
       padding: 6px 16px;
       border-radius: 20px;
       font-size: 11px;
       font-weight: 600;
       pointer-events: none;
       white-space: nowrap;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.6);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.65);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
       letter-spacing: 0.2px;
     }
 
@@ -1534,10 +1537,23 @@
     }
 
     function refreshWaypointIndices() {
+      var dense = waypoints.length > 40;
       for (var i = 0; i < waypoints.length; i++) {
         var wp = waypoints[i];
-        wp.marker.setIcon(createPinIcon(i, waypoints.length));
-        updatePopup(wp.marker, i);
+        if (dense && i > 0 && i < waypoints.length - 1) {
+          if (wp.marker) {
+            map.removeLayer(wp.marker);
+            wp.marker = null;
+          }
+        } else {
+          if (!wp.marker && currentMode === "route") {
+            wp.marker = createWaypointMarker(wp.lat, wp.lon, i);
+          }
+          if (wp.marker) {
+            wp.marker.setIcon(createPinIcon(i, waypoints.length));
+            updatePopup(wp.marker, i);
+          }
+        }
       }
     }
 
@@ -1550,7 +1566,9 @@
 
     function removeWaypointByIndex(index) {
       if (index >= 0 && index < waypoints.length) {
-        map.removeLayer(waypoints[index].marker);
+        if (waypoints[index].marker) {
+          map.removeLayer(waypoints[index].marker);
+        }
         waypoints.splice(index, 1);
         refreshWaypointIndices();
         redrawRouteLine();
@@ -1561,26 +1579,37 @@
     function undoLast() {
       if (waypoints.length > 0) {
         var last = waypoints.pop();
-        map.removeLayer(last.marker);
+        if (last.marker) {
+          map.removeLayer(last.marker);
+        }
         refreshWaypointIndices();
         redrawRouteLine();
         notifyWaypointsChanged();
       }
     }
 
-    function clearAll(notifyNative) {
+    function clearRouteOnly() {
       for (var i = 0; i < waypoints.length; i++) {
-        map.removeLayer(waypoints[i].marker);
+        if (waypoints[i].marker) {
+          map.removeLayer(waypoints[i].marker);
+        }
       }
       waypoints = [];
       if (routeLine) {
         map.removeLayer(routeLine);
         routeLine = null;
       }
-      if (singleMarker) {
-        map.removeLayer(singleMarker);
-        singleMarker = null;
+    }
+
+    function clearAll(notifyNative) {
+      if (currentMode === "single" && notifyNative !== false) {
+        if (singleMarker) {
+          map.removeLayer(singleMarker);
+          singleMarker = null;
+        }
+        return;
       }
+      clearRouteOnly();
       if (notifyNative !== false) {
         notifyWaypointsChanged();
       }
@@ -1602,7 +1631,10 @@
         weight: 6,
         opacity: 0.88,
         lineJoin: 'round'
-      }).addTo(map);
+      });
+      if (currentMode === "route") {
+        routeLine.addTo(map);
+      }
     }
 
     function fitRoute() {
@@ -1626,14 +1658,25 @@
     // ================= Native Interface Methods =================
     window.setRouteWaypoints = function(jsonStr) {
       try {
-        clearAll(false);
+        clearRouteOnly();
         var pts = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
         if (!Array.isArray(pts)) return;
 
-        pts.forEach(function(pt) {
-          addWaypoint(parseFloat(pt.lat), parseFloat(pt.lon), false);
-        });
-        fitRoute();
+        var dense = pts.length > 40;
+        for (var i = 0; i < pts.length; i++) {
+          var lat = parseFloat(pts[i].lat);
+          var lon = parseFloat(pts[i].lon);
+          var marker = null;
+          if (currentMode === "route" && (!dense || i === 0 || i === pts.length - 1)) {
+            marker = createWaypointMarker(lat, lon, i);
+          }
+          waypoints.push({ lat: lat, lon: lon, marker: marker });
+        }
+        refreshWaypointIndices();
+        redrawRouteLine();
+        if (currentMode === "route") {
+          fitRoute();
+        }
         notifyWaypointsChanged();
       } catch (e) {
         console.error("setRouteWaypoints err:", e);
@@ -1650,10 +1693,33 @@
         undoBtn.style.display = 'none';
         snapBtn.style.display = 'none';
         hint.innerText = "👆 点击地图任意位置选取单点模拟目标";
+        if (routeLine && map.hasLayer(routeLine)) {
+          map.removeLayer(routeLine);
+        }
+        for (var i = 0; i < waypoints.length; i++) {
+          if (waypoints[i].marker && map.hasLayer(waypoints[i].marker)) {
+            map.removeLayer(waypoints[i].marker);
+          }
+        }
+        if (singleMarker && !map.hasLayer(singleMarker)) {
+          singleMarker.addTo(map);
+        }
       } else {
         undoBtn.style.display = 'flex';
         snapBtn.style.display = 'flex';
         hint.innerText = "👆 点击地图任意位置添加途经路点";
+        if (singleMarker && map.hasLayer(singleMarker)) {
+          map.removeLayer(singleMarker);
+        }
+        if (routeLine && !map.hasLayer(routeLine)) {
+          routeLine.addTo(map);
+        }
+        refreshWaypointIndices();
+        for (var j = 0; j < waypoints.length; j++) {
+          if (waypoints[j].marker && !map.hasLayer(waypoints[j].marker)) {
+            waypoints[j].marker.addTo(map);
+          }
+        }
       }
     };
 

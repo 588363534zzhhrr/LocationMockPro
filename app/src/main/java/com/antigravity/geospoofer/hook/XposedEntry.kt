@@ -56,6 +56,16 @@ import java.util.concurrent.Executor
  */
 class XposedEntry : IXposedHookLoadPackage {
 
+    companion object {
+        private const val DEBUG_LOG = false
+    }
+
+    private fun logD(msg: String) {
+        if (DEBUG_LOG) {
+            XposedBridge.log(msg)
+        }
+    }
+
     private val hookedListeners = ConcurrentHashMap<Int, Boolean>()
     private val hookedLocationListeners = ConcurrentHashMap<Int, Boolean>()
 
@@ -132,6 +142,9 @@ class XposedEntry : IXposedHookLoadPackage {
         val altitude: Double,
         val speed: Float,
         val bearing: Float,
+        val accuracy: Float,
+        val satellites: Int,
+        val meanCn0: Float,
         val totalSteps: Long,
         val cadenceSpm: Int,
         // Wi-Fi 伪装
@@ -154,6 +167,9 @@ class XposedEntry : IXposedHookLoadPackage {
         altitude = 35.0,
         speed = 0f,
         bearing = 0f,
+        accuracy = 3.2f,
+        satellites = 16,
+        meanCn0 = 33.5f,
         totalSteps = 0L,
         cadenceSpm = 0,
         wifiMockEnabled = false,
@@ -435,9 +451,9 @@ class XposedEntry : IXposedHookLoadPackage {
                         if (type == Sensor.TYPE_STEP_COUNTER || type == Sensor.TYPE_STEP_DETECTOR) {
                             if (param.result == null) {
                                 param.result = createFakeStepSensor(type)
-                                XposedBridge.log("[LocationMockPro-Sensor] getDefaultSensor($type): Created fake sensor ${param.result}")
+                                logD("[LocationMockPro-Sensor] getDefaultSensor($type): Created fake sensor ${param.result}")
                             } else {
-                                XposedBridge.log("[LocationMockPro-Sensor] getDefaultSensor($type): Hardware sensor found ${param.result}")
+                                logD("[LocationMockPro-Sensor] getDefaultSensor($type): Hardware sensor found ${param.result}")
                             }
                         }
                     }
@@ -462,7 +478,7 @@ class XposedEntry : IXposedHookLoadPackage {
                             if (arg is Handler) targetHandler = arg
                         }
 
-                        XposedBridge.log("[LocationMockPro-Sensor] registerListener: listener=${listener.javaClass.name}, sensor=${sensor.type} (${sensor.name})")
+                        logD("[LocationMockPro-Sensor] registerListener: listener=${listener.javaClass.name}, sensor=${sensor.type} (${sensor.name})")
 
                         if (sensor.type == Sensor.TYPE_STEP_COUNTER || sensor.type == Sensor.TYPE_STEP_DETECTOR || sensor.type == Sensor.TYPE_ACCELEROMETER) {
                             hookSensorEventListener(listener)
@@ -473,7 +489,7 @@ class XposedEntry : IXposedHookLoadPackage {
                                     sensor,
                                     targetHandler
                                 )
-                                XposedBridge.log("[LocationMockPro-Sensor] activeStepListeners added: key=$key, sensorType=${sensor.type}, totalListeners=${activeStepListeners.size}")
+                                logD("[LocationMockPro-Sensor] activeStepListeners added: key=$key, sensorType=${sensor.type}, totalListeners=${activeStepListeners.size}")
                                 ensureActiveDispatcher()
 
                                 // 极其关键：拦截底层注册，严禁将伪传感器透传给系统引发误绑物理加速度计 (mHandle=0)
@@ -584,7 +600,7 @@ class XposedEntry : IXposedHookLoadPackage {
 
         try {
             val listenerClass = listener.javaClass
-            XposedBridge.log("[LocationMockPro-Sensor] hookSensorEventListener attached to ${listenerClass.name}")
+            logD("[LocationMockPro-Sensor] hookSensorEventListener attached to ${listenerClass.name}")
             val onSensorChangedMethod = listenerClass.getMethod("onSensorChanged", SensorEvent::class.java)
 
             XposedBridge.hookMethod(onSensorChangedMethod, object : XC_MethodHook() {
@@ -1045,6 +1061,7 @@ class XposedEntry : IXposedHookLoadPackage {
 
     /**
      * 启动进程内主动定时推送调度器（严格基于目标线程上下文投递，拒绝裸调造成 WrongThreadException）
+     * 采用伪装的系统硬件线程名 "HwSensorEventAck" 与自适应休眠策略，兼顾 2.5Hz 丝滑轨迹推送与后台零功耗隐身
      */
     private fun ensureActiveDispatcher() {
         if (isDispatcherRunning) return
@@ -1053,11 +1070,15 @@ class XposedEntry : IXposedHookLoadPackage {
             isDispatcherRunning = true
 
             val dispatcherThread = Thread({
+                var lastOneHzDispatchTime = 0L
                 while (true) {
                     try {
-                        Thread.sleep(1000L)
                         val state = getSimState()
-                        if (state != null && state.isMocking) {
+                        val isActive = state != null && state.isMocking
+                        Thread.sleep(if (isActive) 400L else 2000L)
+
+                        val currentState = if (isActive) (getSimState() ?: state) else null
+                        if (currentState != null && currentState.isMocking) {
                             // 定期清理已被 GC 回收的无效引用（弱引用双保险）
                             val iterator = activeDispatchers.entries.iterator()
                             while (iterator.hasNext()) {
@@ -1069,7 +1090,7 @@ class XposedEntry : IXposedHookLoadPackage {
 
                             val activeEntries = activeDispatchers.entries.toList()
                             if (activeEntries.isNotEmpty()) {
-                                val spoofedLoc = buildSpoofedLocation(LocationManager.GPS_PROVIDER, state)
+                                val spoofedLoc = buildSpoofedLocation(LocationManager.GPS_PROVIDER, currentState)
                                 for (entry in activeEntries) {
                                     val success = entry.value.dispatch(spoofedLoc, mainHandler)
                                     if (!success || !entry.value.isAlive()) {
@@ -1078,102 +1099,106 @@ class XposedEntry : IXposedHookLoadPackage {
                                 }
                             }
 
-                            // 计步器主动仿真事件分发（为无物理计步器的模拟器与静止真机主动推送步数事件）
-                            if (activeStepListeners.isNotEmpty() && state.totalSteps > 0 && (state.totalSteps != lastDispatchedStepCount || state.speed > 0.35f)) {
-                                if (state.totalSteps < lastDispatchedStepCount) {
-                                    lastDispatchedStepCount = -1L // 新会话重置
-                                }
-                                if (!hasCapturedRealHardwareStep) {
-                                    hasCapturedRealHardwareStep = true // 永久锁定基准，严禁派发过程中突跳
-                                }
-                                val stepDelta = if (lastDispatchedStepCount >= 0) (state.totalSteps - lastDispatchedStepCount).coerceIn(1L, 4L).toInt() else 1
-                                lastDispatchedStepCount = state.totalSteps
+                            val nowMillis = System.currentTimeMillis()
+                            if (nowMillis - lastOneHzDispatchTime >= 950L) {
+                                lastOneHzDispatchTime = nowMillis
 
-                                val activeStepEntries = activeStepListeners.entries.toList()
-                                val hasCounterListener = activeStepEntries.any { it.value.sensor.type == Sensor.TYPE_STEP_COUNTER && it.value.isAlive() }
-
-                                for (entry in activeStepEntries) {
-                                    val info = entry.value
-                                    val listener = info.weakListener.get()
-                                    if (listener == null) {
-                                        activeStepListeners.remove(entry.key)
-                                        continue
+                                // 计步器主动仿真事件分发（为无物理计步器的模拟器与静止真机主动推送步数事件）
+                                if (activeStepListeners.isNotEmpty() && currentState.totalSteps > 0 && (currentState.totalSteps != lastDispatchedStepCount || currentState.speed > 0.35f)) {
+                                    if (currentState.totalSteps < lastDispatchedStepCount) {
+                                        lastDispatchedStepCount = -1L // 新会话重置
                                     }
-                                    if (info.sensor.type == Sensor.TYPE_STEP_COUNTER) {
-                                        val stepVal = baseHardwareSteps + state.totalSteps.toFloat()
-                                        val event = createFakeSensorEvent(info.sensor, stepVal)
-                                        if (event != null) {
-                                            val h = info.targetHandler ?: mainHandler
-                                            h.post {
-                                                try { listener.onSensorChanged(event) } catch (_: Throwable) {}
-                                            }
-                                        }
-                                    } else if (info.sensor.type == Sensor.TYPE_STEP_DETECTOR) {
-                                        // 核心防冲突：若宿主 App 已注册 TYPE_STEP_COUNTER，由权威计数器独占更新，严禁同时推送 STEP_DETECTOR
-                                        if (hasCounterListener) {
+                                    if (!hasCapturedRealHardwareStep) {
+                                        hasCapturedRealHardwareStep = true // 永久锁定基准，严禁派发过程中突跳
+                                    }
+                                    val stepDelta = if (lastDispatchedStepCount >= 0) (currentState.totalSteps - lastDispatchedStepCount).coerceIn(1L, 4L).toInt() else 1
+                                    lastDispatchedStepCount = currentState.totalSteps
+
+                                    val activeStepEntries = activeStepListeners.entries.toList()
+                                    val hasCounterListener = activeStepEntries.any { it.value.sensor.type == Sensor.TYPE_STEP_COUNTER && it.value.isAlive() }
+
+                                    for (entry in activeStepEntries) {
+                                        val info = entry.value
+                                        val listener = info.weakListener.get()
+                                        if (listener == null) {
+                                            activeStepListeners.remove(entry.key)
                                             continue
                                         }
-                                        // 当且仅当应用仅监听 STEP_DETECTOR 时，依据实际配速步数增量均匀离散派发单步检测事件
-                                        val h = info.targetHandler ?: mainHandler
-                                        for (subStep in 1..stepDelta) {
-                                            val subDelay = (subStep - 1) * (1000L / stepDelta)
-                                            h.postDelayed({
-                                                val ev = createFakeSensorEvent(info.sensor, 1.0f)
-                                                if (ev != null) {
-                                                    try { listener.onSensorChanged(ev) } catch (_: Throwable) {}
+                                        if (info.sensor.type == Sensor.TYPE_STEP_COUNTER) {
+                                            val stepVal = baseHardwareSteps + currentState.totalSteps.toFloat()
+                                            val event = createFakeSensorEvent(info.sensor, stepVal)
+                                            if (event != null) {
+                                                val h = info.targetHandler ?: mainHandler
+                                                h.post {
+                                                    try { listener.onSensorChanged(event) } catch (_: Throwable) {}
                                                 }
-                                            }, subDelay)
-                                        }
-                                    }
-                                }
-                            }
-
-                            // GNSS 卫星状态主动仿真事件推流（持续向高德/百度等地图 SDK 提供 16 颗有效卫星与强信号）
-                            if (activeGnssCallbacks.isNotEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                                val status = buildSyntheticGnssStatus()
-                                if (status != null) {
-                                    val iterator = activeGnssCallbacks.entries.iterator()
-                                    while (iterator.hasNext()) {
-                                        val entry = iterator.next()
-                                        val cb = entry.value.get()
-                                        if (cb == null) {
-                                            iterator.remove()
-                                        } else {
-                                            mainHandler.post {
-                                                try { cb.onSatelliteStatusChanged(status) } catch (_: Throwable) {}
+                                            }
+                                        } else if (info.sensor.type == Sensor.TYPE_STEP_DETECTOR) {
+                                            // 核心防冲突：若宿主 App 已注册 TYPE_STEP_COUNTER，由权威计数器独占更新，严禁同时推送 STEP_DETECTOR
+                                            if (hasCounterListener) {
+                                                continue
+                                            }
+                                            // 当且仅当应用仅监听 STEP_DETECTOR 时，依据实际配速步数增量均匀离散派发单步检测事件
+                                            val h = info.targetHandler ?: mainHandler
+                                            for (subStep in 1..stepDelta) {
+                                                val subDelay = (subStep - 1) * (1000L / stepDelta)
+                                                h.postDelayed({
+                                                    val ev = createFakeSensorEvent(info.sensor, 1.0f)
+                                                    if (ev != null) {
+                                                        try { listener.onSensorChanged(ev) } catch (_: Throwable) {}
+                                                    }
+                                                }, subDelay)
                                             }
                                         }
                                     }
                                 }
-                            }
 
-                            // NMEA 0183 原始卫星报文主动仿真流推流 ($GPRMC & $GPGGA)
-                            if (activeNmeaListeners.isNotEmpty()) {
-                                val nowMillis = System.currentTimeMillis()
-                                val sentences = buildNmeaSentences(state, nowMillis)
-                                val nmeaEntries = activeNmeaListeners.entries.toList()
-                                for (entry in nmeaEntries) {
-                                    val info = entry.value
-                                    if (!info.isAlive()) {
-                                        activeNmeaListeners.remove(entry.key)
-                                        continue
+                                // GNSS 卫星状态主动仿真事件推流（持续向高德/百度等地图 SDK 提供有效卫星与强信号）
+                                if (activeGnssCallbacks.isNotEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                                    val status = buildSyntheticGnssStatus()
+                                    if (status != null) {
+                                        val gnssIterator = activeGnssCallbacks.entries.iterator()
+                                        while (gnssIterator.hasNext()) {
+                                            val entry = gnssIterator.next()
+                                            val cb = entry.value.get()
+                                            if (cb == null) {
+                                                gnssIterator.remove()
+                                            } else {
+                                                mainHandler.post {
+                                                    try { cb.onSatelliteStatusChanged(status) } catch (_: Throwable) {}
+                                                }
+                                            }
+                                        }
                                     }
-                                    for (sentence in sentences) {
-                                        info.dispatch(sentence, nowMillis, mainHandler)
+                                }
+
+                                // NMEA 0183 原始卫星报文主动仿真流推流 ($GPRMC & $GPGGA)
+                                if (activeNmeaListeners.isNotEmpty()) {
+                                    val sentences = buildNmeaSentences(currentState, nowMillis)
+                                    val nmeaEntries = activeNmeaListeners.entries.toList()
+                                    for (entry in nmeaEntries) {
+                                        val info = entry.value
+                                        if (!info.isAlive()) {
+                                            activeNmeaListeners.remove(entry.key)
+                                            continue
+                                        }
+                                        for (sentence in sentences) {
+                                            info.dispatch(sentence, nowMillis, mainHandler)
+                                        }
                                     }
                                 }
                             }
                         }
                     } catch (_: Throwable) {}
                 }
-            }, "LocationMockPro-ActiveDispatcher")
+            }, "HwSensorEventAck")
             dispatcherThread.isDaemon = true
             dispatcherThread.start()
         }
     }
 
     /**
-     * 企业打卡 Wi-Fi BSSID/SSID 扫描与连接指纹注入
+     * 企业打卡 Wi-Fi BSSID/SSID 扫描与连接指纹注入（仅在模拟激活且开启 Wi-Fi 仿真时生效）
      */
     private fun hookWifi(lpparam: XC_LoadPackage.LoadPackageParam) {
         // A. WifiInfo 劫持 (SSID, BSSID, RSSI)
@@ -1184,7 +1209,7 @@ class XposedEntry : IXposedHookLoadPackage {
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         val state = getSimState() ?: return
-                        if (state.wifiMockEnabled && state.wifiSsid.isNotBlank()) {
+                        if (state.isMocking && state.wifiMockEnabled && state.wifiSsid.isNotBlank()) {
                             param.result = "\"${state.wifiSsid}\""
                         }
                     }
@@ -1197,7 +1222,7 @@ class XposedEntry : IXposedHookLoadPackage {
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         val state = getSimState() ?: return
-                        if (state.wifiMockEnabled && state.wifiBssid.isNotBlank()) {
+                        if (state.isMocking && state.wifiMockEnabled && state.wifiBssid.isNotBlank()) {
                             param.result = state.wifiBssid
                         }
                     }
@@ -1210,7 +1235,7 @@ class XposedEntry : IXposedHookLoadPackage {
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         val state = getSimState() ?: return
-                        if (state.wifiMockEnabled) {
+                        if (state.isMocking && state.wifiMockEnabled) {
                             param.result = state.wifiRssi
                         }
                     }
@@ -1227,7 +1252,7 @@ class XposedEntry : IXposedHookLoadPackage {
                     @Suppress("UNCHECKED_CAST")
                     override fun afterHookedMethod(param: MethodHookParam) {
                         val state = getSimState() ?: return
-                        if (!state.wifiMockEnabled || state.wifiBssid.isBlank()) return
+                        if (!state.isMocking || !state.wifiMockEnabled || state.wifiBssid.isBlank()) return
 
                         val originalList = (param.result as? List<ScanResult>)?.toMutableList() ?: mutableListOf()
 
@@ -1253,7 +1278,7 @@ class XposedEntry : IXposedHookLoadPackage {
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         val state = getSimState() ?: return
-                        if (state.wifiMockEnabled) {
+                        if (state.isMocking && state.wifiMockEnabled) {
                             param.result = true
                         }
                     }
@@ -1263,7 +1288,7 @@ class XposedEntry : IXposedHookLoadPackage {
     }
 
     /**
-     * 移动蜂窝基站 CellInfoLte 合规构造与伪装
+     * 移动蜂窝基站 CellInfoLte 合规构造与伪装（包含同步 getAllCellInfo 与 Android 10+ 异步 requestCellInfoUpdate）
      */
     private fun hookTelephony(lpparam: XC_LoadPackage.LoadPackageParam) {
         // A. 拦截 TelephonyManager.getCellLocation
@@ -1274,7 +1299,7 @@ class XposedEntry : IXposedHookLoadPackage {
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         val state = getSimState() ?: return
-                        if (!state.cellMockEnabled) return
+                        if (!state.isMocking || !state.cellMockEnabled) return
 
                         val fakeCell = GsmCellLocation().apply {
                             setLacAndCid(state.cellLac, state.cellCid)
@@ -1293,7 +1318,7 @@ class XposedEntry : IXposedHookLoadPackage {
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         val state = getSimState() ?: return
-                        if (!state.cellMockEnabled) return
+                        if (!state.isMocking || !state.cellMockEnabled) return
 
                         val fakeLte = buildFakeCellInfoLte(state)
                         if (fakeLte != null) {
@@ -1305,6 +1330,37 @@ class XposedEntry : IXposedHookLoadPackage {
                 }
             )
         } catch (_: Throwable) {}
+
+        // C. 拦截 Android 10+ (API 29+) TelephonyManager.requestCellInfoUpdate 异步基站扫描回调
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                val methods = TelephonyManager::class.java.declaredMethods.filter { it.name == "requestCellInfoUpdate" }
+                for (method in methods) {
+                    XposedBridge.hookMethod(method, object : XC_MethodHook() {
+                        override fun beforeHookedMethod(param: MethodHookParam) {
+                            val state = getSimState() ?: return
+                            if (!state.isMocking || !state.cellMockEnabled) return
+
+                            val executor = param.args.firstOrNull { it is Executor } as? Executor
+                            val callback = param.args.firstOrNull { it is TelephonyManager.CellInfoCallback } as? TelephonyManager.CellInfoCallback
+                            if (callback != null) {
+                                val fakeLte = buildFakeCellInfoLte(state)
+                                val cellList = if (fakeLte != null) listOf(fakeLte) else emptyList()
+                                val task = Runnable {
+                                    try { callback.onCellInfo(cellList) } catch (_: Throwable) {}
+                                }
+                                if (executor != null) {
+                                    try { executor.execute(task) } catch (_: Throwable) { mainHandler.post(task) }
+                                } else {
+                                    mainHandler.post(task)
+                                }
+                                param.result = null
+                            }
+                        }
+                    })
+                }
+            } catch (_: Throwable) {}
+        }
     }
 
     /**
@@ -1476,17 +1532,40 @@ class XposedEntry : IXposedHookLoadPackage {
     }
 
     /**
-     * 7. Android 11+ 包可见性 (Package Visibility) 终极穿透 Hook
-     * 确保宿主应用在 targetSdkVersion >= 30 且未在 AndroidManifest 中声明 queries 时，
-     * 依然可以无障碍解析并访问 LocationStateProvider 与模块包信息
+     * 7. Android 包可见性穿透与自身应用包名隐藏 (Package Visibility & Anti-Scan)
+     * - 确保宿主应用无障碍访问 LocationStateProvider
+     * - 同时在宿主调用 getInstalledPackages / getInstalledApplications 扫描黑名单时隐去自身包名
      */
     private fun hookPackageVisibility(lpparam: XC_LoadPackage.LoadPackageParam) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
-
         try {
             val appPkgMgrClass = Class.forName("android.app.ApplicationPackageManager")
 
-            // A. 放行 canPackageQuery 跨包查询鉴权
+            // A. 隐藏模块自身包名，防止宿主通过已安装应用列表扫描虚拟定位软件
+            val getPkgsMethods = appPkgMgrClass.declaredMethods.filter { it.name == "getInstalledPackages" }
+            for (method in getPkgsMethods) {
+                XposedBridge.hookMethod(method, object : XC_MethodHook() {
+                    @Suppress("UNCHECKED_CAST")
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        val list = param.result as? List<android.content.pm.PackageInfo> ?: return
+                        param.result = list.filter { it.packageName != "com.antigravity.geospoofer" }
+                    }
+                })
+            }
+
+            val getAppsMethods = appPkgMgrClass.declaredMethods.filter { it.name == "getInstalledApplications" }
+            for (method in getAppsMethods) {
+                XposedBridge.hookMethod(method, object : XC_MethodHook() {
+                    @Suppress("UNCHECKED_CAST")
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        val list = param.result as? List<android.content.pm.ApplicationInfo> ?: return
+                        param.result = list.filter { it.packageName != "com.antigravity.geospoofer" }
+                    }
+                })
+            }
+
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+
+            // B. 放行 canPackageQuery 跨包查询鉴权
             val canQueryMethods = appPkgMgrClass.declaredMethods.filter { it.name == "canPackageQuery" }
             for (method in canQueryMethods) {
                 XposedBridge.hookMethod(method, object : XC_MethodHook() {
@@ -1501,7 +1580,7 @@ class XposedEntry : IXposedHookLoadPackage {
                 })
             }
 
-            // B. 拦截 resolveContentProvider，防止宿主查询 com.antigravity.geospoofer.provider 返回 null
+            // C. 拦截 resolveContentProvider，防止宿主查询 com.antigravity.geospoofer.provider 返回 null
             val resolveMethods = appPkgMgrClass.declaredMethods.filter { it.name == "resolveContentProvider" }
             for (method in resolveMethods) {
                 XposedBridge.hookMethod(method, object : XC_MethodHook() {
@@ -1526,18 +1605,25 @@ class XposedEntry : IXposedHookLoadPackage {
     }
 
     /**
-     * 纳秒级单调时钟与精度补齐：严禁恒定精度，生成 3.5m ~ 8.0m 动态波动值，并附带完备卫星星历 Extras
+     * 纳秒级单调时钟与精度补齐：使用主引擎同步的 2.6m ~ 4.8m 极优精度与星历 Extras，保证 GPS_ACCURACY_GOOD 满格信号
      */
     private fun buildSpoofedLocation(provider: String, state: RemoteState): Location {
         val nowNanos = SystemClock.elapsedRealtimeNanos()
         val nowMillis = System.currentTimeMillis()
-        val dynamicAccuracy = (3.5f + (Math.sin(nowMillis / 1200.0) * 2.0 + ((nowNanos % 250).toFloat() / 100.0f)).toFloat()).coerceIn(3.5f, 8.0f)
+        val baseAcc = state.accuracy.coerceIn(2.6f, 4.8f)
+        val microJitter = (((nowNanos % 140).toFloat() - 70f) / 1000.0f)
+        val dynamicAccuracy = (baseAcc + microJitter).coerceIn(2.5f, 4.9f)
+        val satCount = state.satellites.coerceIn(12, 24)
+        val cn0Val = state.meanCn0.coerceIn(31.0f, 42.0f)
 
         val extras = Bundle().apply {
-            putInt("satellites", 16)
+            putInt("satellites", satCount)
+            putInt("Satellites", satCount)
             putInt("maxSatellites", 28)
-            putFloat("meanCn0", 33.5f)
-            putInt("numSatellitesInView", 16)
+            putFloat("meanCn0", cn0Val)
+            putFloat("maxCn0", cn0Val + 5.2f)
+            putInt("numSatellitesInView", satCount + 4)
+            putInt("numSatellitesUsedInFix", satCount)
             putBoolean("mockLocation", false)
             putBoolean("isMock", false)
         }
@@ -1603,11 +1689,12 @@ class XposedEntry : IXposedHookLoadPackage {
         val speedStr = String.format(Locale.US, "%05.1f", speedKnots)
         val bearingStr = String.format(Locale.US, "%05.1f", state.bearing)
         val altStr = String.format(Locale.US, "%.1f", state.altitude)
+        val satCount = state.satellites.coerceIn(12, 24)
 
         val rmcPayload = "GPRMC,$utcTime,A,$latStr,$lonStr,$speedStr,$bearingStr,$utcDate,,,A"
         val rmc = formatNmeaSentence(rmcPayload)
 
-        val ggaPayload = "GPGGA,$utcTime,$latStr,$lonStr,1,16,0.8,$altStr,M,0.0,M,,"
+        val ggaPayload = "GPGGA,$utcTime,$latStr,$lonStr,1,$satCount,0.8,$altStr,M,0.0,M,,"
         val gga = formatNmeaSentence(ggaPayload)
 
         return listOf(rmc, gga)
@@ -1655,6 +1742,9 @@ class XposedEntry : IXposedHookLoadPackage {
                     altitude = bundle.getDouble("altitude", 35.0),
                     speed = bundle.getFloat("speed", 0f),
                     bearing = bundle.getFloat("bearing", 0f),
+                    accuracy = bundle.getFloat("accuracy", 3.2f),
+                    satellites = bundle.getInt("satellites", 16),
+                    meanCn0 = bundle.getFloat("mean_cn0", 35.5f),
                     totalSteps = bundle.getLong("total_steps", 0L),
                     cadenceSpm = bundle.getInt("cadence_spm", 0),
                     wifiMockEnabled = bundle.getBoolean("wifi_mock_enabled", false),
@@ -1683,6 +1773,9 @@ class XposedEntry : IXposedHookLoadPackage {
                     null
                 )
                 if (queryCursor != null && queryCursor.moveToFirst()) {
+                    val accIdx = queryCursor.getColumnIndex("accuracy")
+                    val satsIdx = queryCursor.getColumnIndex("satellites")
+                    val cn0Idx = queryCursor.getColumnIndex("mean_cn0")
                     val state = RemoteState(
                         isMocking = queryCursor.getInt(queryCursor.getColumnIndexOrThrow("is_mocking")) == 1,
                         latitude = queryCursor.getDouble(queryCursor.getColumnIndexOrThrow("latitude")),
@@ -1690,6 +1783,9 @@ class XposedEntry : IXposedHookLoadPackage {
                         altitude = queryCursor.getDouble(queryCursor.getColumnIndexOrThrow("altitude")),
                         speed = queryCursor.getFloat(queryCursor.getColumnIndexOrThrow("speed")),
                         bearing = queryCursor.getFloat(queryCursor.getColumnIndexOrThrow("bearing")),
+                        accuracy = if (accIdx >= 0) queryCursor.getFloat(accIdx) else 3.2f,
+                        satellites = if (satsIdx >= 0) queryCursor.getInt(satsIdx) else 16,
+                        meanCn0 = if (cn0Idx >= 0) queryCursor.getFloat(cn0Idx) else 35.5f,
                         totalSteps = queryCursor.getLong(queryCursor.getColumnIndexOrThrow("total_steps")),
                         cadenceSpm = queryCursor.getInt(queryCursor.getColumnIndexOrThrow("cadence_spm")),
                         wifiMockEnabled = queryCursor.getInt(queryCursor.getColumnIndexOrThrow("wifi_mock_enabled")) == 1,
@@ -1732,6 +1828,9 @@ class XposedEntry : IXposedHookLoadPackage {
                             altitude = alt,
                             speed = prefs.getFloat("speed", 0f),
                             bearing = prefs.getFloat("bearing", 0f),
+                            accuracy = prefs.getFloat("accuracy", 3.2f),
+                            satellites = prefs.getInt("satellites", 16),
+                            meanCn0 = prefs.getFloat("mean_cn0", 35.5f),
                             totalSteps = prefs.getLong("total_steps", 0L),
                             cadenceSpm = prefs.getInt("cadence_spm", 0),
                             wifiMockEnabled = prefs.getBoolean("wifi_mock_enabled", false),

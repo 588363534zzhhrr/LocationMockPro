@@ -43,8 +43,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun RouteMockTab(
     mapController: MapController,
-    isMapExpanded: Boolean,
-    onToggleMapExpand: () -> Unit,
     simState: RouteSimulator.SimulationState,
     waypoints: List<CoordinateUtils.LatLng>,
     onWaypointsChange: (List<CoordinateUtils.LatLng>) -> Unit,
@@ -62,8 +60,6 @@ fun RouteMockTab(
     onStopRoute: () -> Unit,
     onPauseRoute: () -> Unit,
     onResumeRoute: () -> Unit,
-    joystickEnabled: Boolean,
-    onToggleJoystick: (Boolean) -> Unit,
     savedRoutes: List<SavedRoute>,
     presetRoutes: List<PresetRoute>,
     onOpenSaveDialog: () -> Unit,
@@ -80,9 +76,10 @@ fun RouteMockTab(
     var newLatText by remember { mutableStateOf("") }
     var newLonText by remember { mutableStateOf("") }
     var showPresetDrawer by remember { mutableStateOf(false) }
+    var showAllWaypoints by remember { mutableStateOf(false) }
 
-    // 页面进入或切换 Tab 导致地图组件重绘时，自动重放恢复已规划路网与轨迹航线
-    LaunchedEffect(mapController.isReady, waypoints) {
+    // 页面进入或切换 Tab 时，自动同步已规划路网与轨迹航线
+    LaunchedEffect(mapController.isReady) {
         if (mapController.isReady && waypoints.isNotEmpty()) {
             mapController.setRouteWaypoints(waypoints)
         }
@@ -94,28 +91,20 @@ fun RouteMockTab(
             .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // 🗺️ 交互式全景路线地图
-        InteractiveMapCard(
-            controller = mapController,
-            mode = "route",
-            height = if (isMapExpanded) 480.dp else 280.dp,
-            onWaypointsUpdated = onWaypointsChange,
-            onToggleExpand = onToggleMapExpand
-        )
-
         // ==================== 状态 A: 实时仿真飞行仪表盘 (Aviation HUD) ====================
         if (simState.isSimulating) {
             GlassCard(
-                borderColor = if (simState.isPaused) AppleOrange.copy(alpha = 0.5f) else AppleBorder,
+                accentGlowColor = if (simState.isPaused) TechAmber else TechEmerald,
+                borderColor = if (simState.isPaused) TechAmberLight.copy(alpha = 0.5f) else TechEmeraldLight.copy(alpha = 0.45f),
                 contentPadding = PaddingValues(16.dp)
             ) {
                 // 1. 顶部状态与航段
                 TechSectionHeader(
                     title = if (simState.isPaused) "巡航挂起 (心跳保活)" else "航向与动力学实时推流中",
                     icon = if (simState.isPaused) Icons.Default.PauseCircleFilled else Icons.Default.Radar,
-                    iconTint = if (simState.isPaused) AppleOrange else AppleBlue,
+                    iconTint = if (simState.isPaused) TechAmberLight else TechEmeraldLight,
                     badgeText = "航段 ${simState.currentSegmentIndex} / ${simState.totalSegments}",
-                    badgeColor = if (simState.isPaused) AppleOrange else AppleBlue
+                    badgeColor = if (simState.isPaused) TechAmberLight else TechCyanLight
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -125,10 +114,10 @@ fun RouteMockTab(
                     progress = { simState.progressFraction },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
-                    color = if (simState.isPaused) AppleOrange else AppleBlue,
-                    trackColor = AppleCardSubtle
+                        .height(7.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                    color = if (simState.isPaused) TechAmberLight else TechCyanLight,
+                    trackColor = DarkInputBg
                 )
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -141,9 +130,9 @@ fun RouteMockTab(
                     MetricTile(
                         icon = Icons.Default.Speed,
                         label = "实时时速",
-                        value = "%.1f".format(currentSpeedKmh),
+                        value = "%.1f".format(simState.currentSpeedMps * 3.6f),
                         unit = "km/h",
-                        accentColor = AppleBlue,
+                        accentColor = TechCyanLight,
                         modifier = Modifier.weight(1f)
                     )
                     MetricTile(
@@ -151,7 +140,7 @@ fun RouteMockTab(
                         label = "累计里程",
                         value = "%.2f".format(simState.distanceCoveredMeters / 1000.0),
                         unit = "km",
-                        accentColor = AppleBlue,
+                        accentColor = TechBlueLight,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -167,7 +156,7 @@ fun RouteMockTab(
                         label = "计步与步频",
                         value = "${simState.totalSteps}",
                         unit = "步 / ${simState.cadenceSpm}SPM",
-                        accentColor = AppleOrange,
+                        accentColor = TechAmberLight,
                         modifier = Modifier.weight(1f)
                     )
                     MetricTile(
@@ -175,7 +164,7 @@ fun RouteMockTab(
                         label = "仿真海拔/爬升",
                         value = "%.1f".format(simState.currentElevationMeters),
                         unit = "m (+${"%.1f".format(simState.elevationGainMeters)})",
-                        accentColor = AppleBlue,
+                        accentColor = TechEmeraldLight,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -300,43 +289,37 @@ fun RouteMockTab(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = { onToggleJoystick(!joystickEnabled) },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(0.5.dp, if (joystickEnabled) AppleBlue else AppleBorder),
-                        colors = ButtonDefaults.outlinedButtonColors(containerColor = AppleCardSubtle),
-                        contentPadding = PaddingValues(vertical = 8.dp)
-                    ) {
-                        Icon(Icons.Default.FilterFrames, contentDescription = null, modifier = Modifier.size(14.dp), tint = if (joystickEnabled) AppleBlue else TextSecondary)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(if (joystickEnabled) "关闭悬浮窗" else "开启灵动悬浮窗", fontSize = 11.sp, color = TextPrimary)
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            if (waypoints.isNotEmpty()) {
-                                val ok = GpxExportHelper.exportAndShareGpx(context, waypoints, "运动巡航轨迹", simState.currentSpeedMps)
-                                if (!ok) {
-                                    GpxExportHelper.copyGpxToClipboard(context, waypoints, "运动巡航轨迹", simState.currentSpeedMps)
-                                    Toast.makeText(context, "已复制 GPX XML 至剪贴板", Toast.LENGTH_SHORT).show()
-                                }
+                OutlinedButton(
+                    onClick = {
+                        if (waypoints.isNotEmpty()) {
+                            val ok = GpxExportHelper.exportAndShareGpx(
+                                context,
+                                waypoints,
+                                "运动巡航轨迹",
+                                simState.currentSpeedMps.coerceAtLeast(1.0f),
+                                isGcj02Input = isGcj02Route
+                            )
+                            if (!ok) {
+                                GpxExportHelper.copyGpxToClipboard(
+                                    context,
+                                    waypoints,
+                                    "运动巡航轨迹",
+                                    simState.currentSpeedMps.coerceAtLeast(1.0f),
+                                    isGcj02Input = isGcj02Route
+                                )
+                                Toast.makeText(context, "已复制 GPX XML 至剪贴板", Toast.LENGTH_SHORT).show()
                             }
-                        },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(0.5.dp, AppleBorder),
-                        colors = ButtonDefaults.outlinedButtonColors(containerColor = AppleCardSubtle),
-                        contentPadding = PaddingValues(vertical = 8.dp)
-                    ) {
-                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp), tint = AppleBlue)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("导出实时GPX", fontSize = 11.sp, color = TextPrimary)
-                    }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(0.5.dp, AppleBorder),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = AppleCardSubtle),
+                    contentPadding = PaddingValues(vertical = 8.dp)
+                ) {
+                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp), tint = AppleBlue)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("导出实时 GPX 轨迹文件 (国际标准 WGS-84)", fontSize = 11.sp, color = TextPrimary)
                 }
             }
         }
@@ -345,12 +328,15 @@ fun RouteMockTab(
         if (!simState.isSimulating) {
             // 智能轨迹生成工具箱 (Toolbox)
             GlassCard(
+                accentGlowColor = TechPurple,
                 contentPadding = PaddingValues(16.dp)
             ) {
                 TechSectionHeader(
                     title = "智能轨迹工具箱",
                     icon = Icons.Default.AutoFixHigh,
-                    iconTint = AppleBlue
+                    iconTint = TechPurpleLight,
+                    badgeText = "AI 几何",
+                    badgeColor = TechPurpleLight
                 )
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -363,7 +349,7 @@ fun RouteMockTab(
                         icon = Icons.Default.SportsScore,
                         title = "400m操场",
                         onClick = onOpenTrackDialog,
-                        accentColor = AppleBlue,
+                        accentColor = TechAmberLight,
                         modifier = Modifier.weight(1f)
                     )
 
@@ -372,7 +358,7 @@ fun RouteMockTab(
                         icon = Icons.Default.Shuffle,
                         title = "智能环线",
                         onClick = onOpenLoopDialog,
-                        accentColor = AppleBlue,
+                        accentColor = TechPurpleLight,
                         modifier = Modifier.weight(1f)
                     )
 
@@ -401,7 +387,7 @@ fun RouteMockTab(
                             }
                         },
                         isLoading = isSnappingRoad,
-                        accentColor = AppleBlue,
+                        accentColor = TechCyanLight,
                         modifier = Modifier.weight(1f)
                     )
 
@@ -419,7 +405,7 @@ fun RouteMockTab(
                                 Toast.makeText(context, "已生成原路折返路线", Toast.LENGTH_SHORT).show()
                             }
                         },
-                        accentColor = AppleBlue,
+                        accentColor = TechEmeraldLight,
                         modifier = Modifier.weight(1f)
                     )
 
@@ -436,7 +422,7 @@ fun RouteMockTab(
                                 Toast.makeText(context, "已反转起点与终点", Toast.LENGTH_SHORT).show()
                             }
                         },
-                        accentColor = AppleBlue,
+                        accentColor = TechBlueLight,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -444,12 +430,13 @@ fun RouteMockTab(
 
             // 巡航运动档位与守护目标
             GlassCard(
+                accentGlowColor = TechBlue,
                 contentPadding = PaddingValues(16.dp)
             ) {
                 TechSectionHeader(
                     title = "巡航动力学与自动目标",
                     icon = Icons.Default.Tune,
-                    iconTint = AppleBlue
+                    iconTint = TechCyanLight
                 )
                 Spacer(modifier = Modifier.height(14.dp))
 
@@ -471,7 +458,7 @@ fun RouteMockTab(
                                 onSpeedChange(mode.speedMps * 3.6f)
                             },
                             modifier = Modifier.weight(1f),
-                            activeColor = AppleBlue,
+                            activeColor = TechCyan,
                             activeTextColor = Color.White
                         )
                     }
@@ -494,7 +481,7 @@ fun RouteMockTab(
                             isSelected = isSelected,
                             onClick = { onRouteModeChange(mode) },
                             modifier = Modifier.weight(1f),
-                            activeColor = AppleBlue,
+                            activeColor = TechBlue,
                             activeTextColor = Color.White
                         )
                     }
@@ -524,7 +511,7 @@ fun RouteMockTab(
                             isSelected = isSelected,
                             onClick = { onTargetDistanceKmChange(distKm) },
                             modifier = Modifier.weight(1f),
-                            activeColor = AppleBlue,
+                            activeColor = TechEmerald,
                             activeTextColor = Color.White
                         )
                     }
@@ -574,98 +561,144 @@ fun RouteMockTab(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // 路点列表项
-                waypoints.forEachIndexed { index, point ->
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = AppleCardSubtle,
-                        border = BorderStroke(0.5.dp, AppleBorder),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 3.dp)
-                    ) {
-                        Row(
+                // 路点列表项（当路点数超过 30 个时自动折叠中间密集点，避免长轨迹造成卡顿）
+                val isDenseWaypoints = waypoints.size > 30
+                val visibleIndices = if (isDenseWaypoints && !showAllWaypoints) {
+                    (0 until 5).toList() + listOf(-1) + ((waypoints.size - 5) until waypoints.size).toList()
+                } else {
+                    waypoints.indices.toList()
+                }
+
+                visibleIndices.forEach { index ->
+                    if (index == -1) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = AppleInputBg,
+                            border = BorderStroke(0.5.dp, AppleBlue.copy(alpha = 0.4f)),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(vertical = 4.dp)
+                                .clickable { showAllWaypoints = true }
                         ) {
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                val (badgeColor, label) = when (index) {
-                                    0 -> Pair(AppleGreen, "起")
-                                    waypoints.size - 1 -> Pair(AppleRed, "终")
-                                    else -> Pair(AppleBlue, "$index")
-                                }
-                                Surface(
-                                    color = badgeColor,
-                                    shape = CircleShape,
-                                    modifier = Modifier.size(22.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(
-                                            text = label,
-                                            fontSize = 10.sp,
-                                            color = Color.White,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
+                                Icon(Icons.Default.UnfoldMore, contentDescription = null, tint = AppleBlue, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "${"%.6f".format(point.latitude)}, ${"%.6f".format(point.longitude)}",
-                                    fontSize = 12.sp,
-                                    color = TextPrimary,
-                                    fontFamily = FontFamily.Monospace,
+                                    text = "已智能折叠中间 ${waypoints.size - 10} 个密集轨迹点（点击展开全部）",
+                                    fontSize = 11.sp,
+                                    color = AppleBlue,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
-
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                                if (index > 0) {
-                                    IconButton(
-                                        onClick = {
-                                            val list = waypoints.toMutableList()
-                                            val temp = list[index]
-                                            list[index] = list[index - 1]
-                                            list[index - 1] = temp
-                                            onWaypointsChange(list)
-                                            mapController.setRouteWaypoints(list)
-                                        },
-                                        modifier = Modifier.size(26.dp)
-                                    ) {
-                                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = "上移", tint = TextSecondary, modifier = Modifier.size(17.dp))
-                                    }
-                                }
-                                if (index < waypoints.size - 1) {
-                                    IconButton(
-                                        onClick = {
-                                            val list = waypoints.toMutableList()
-                                            val temp = list[index]
-                                            list[index] = list[index + 1]
-                                            list[index + 1] = temp
-                                            onWaypointsChange(list)
-                                            mapController.setRouteWaypoints(list)
-                                        },
-                                        modifier = Modifier.size(26.dp)
-                                    ) {
-                                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "下移", tint = TextSecondary, modifier = Modifier.size(17.dp))
-                                    }
-                                }
-                                IconButton(
-                                    onClick = {
-                                        val updated = waypoints.filterIndexed { i, _ -> i != index }
-                                        onWaypointsChange(updated)
-                                        mapController.setRouteWaypoints(updated)
-                                    },
-                                    modifier = Modifier.size(26.dp)
+                        }
+                    } else {
+                        val point = waypoints[index]
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = AppleCardSubtle,
+                            border = BorderStroke(0.5.dp, AppleBorder),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 3.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    Icon(Icons.Default.Close, contentDescription = "删除", tint = TextTertiary, modifier = Modifier.size(15.dp))
+                                    val (badgeColor, label) = when (index) {
+                                        0 -> Pair(AppleGreen, "起")
+                                        waypoints.size - 1 -> Pair(AppleRed, "终")
+                                        else -> Pair(AppleBlue, "$index")
+                                    }
+                                    Surface(
+                                        color = badgeColor,
+                                        shape = CircleShape,
+                                        modifier = Modifier.size(22.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                text = label,
+                                                fontSize = 10.sp,
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = "${"%.6f".format(point.latitude)}, ${"%.6f".format(point.longitude)}",
+                                        fontSize = 12.sp,
+                                        color = TextPrimary,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    if (index > 0) {
+                                        IconButton(
+                                            onClick = {
+                                                val list = waypoints.toMutableList()
+                                                val temp = list[index]
+                                                list[index] = list[index - 1]
+                                                list[index - 1] = temp
+                                                onWaypointsChange(list)
+                                                mapController.setRouteWaypoints(list)
+                                            },
+                                            modifier = Modifier.size(26.dp)
+                                        ) {
+                                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = "上移", tint = TextSecondary, modifier = Modifier.size(17.dp))
+                                        }
+                                    }
+                                    if (index < waypoints.size - 1) {
+                                        IconButton(
+                                            onClick = {
+                                                val list = waypoints.toMutableList()
+                                                val temp = list[index]
+                                                list[index] = list[index + 1]
+                                                list[index + 1] = temp
+                                                onWaypointsChange(list)
+                                                mapController.setRouteWaypoints(list)
+                                            },
+                                            modifier = Modifier.size(26.dp)
+                                        ) {
+                                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "下移", tint = TextSecondary, modifier = Modifier.size(17.dp))
+                                        }
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            val updated = waypoints.filterIndexed { i, _ -> i != index }
+                                            onWaypointsChange(updated)
+                                            mapController.setRouteWaypoints(updated)
+                                        },
+                                        modifier = Modifier.size(26.dp)
+                                    ) {
+                                        Icon(Icons.Default.Close, contentDescription = "删除", tint = TextTertiary, modifier = Modifier.size(15.dp))
+                                    }
                                 }
                             }
                         }
+                    }
+                }
+
+                if (isDenseWaypoints && showAllWaypoints) {
+                    TextButton(
+                        onClick = { showAllWaypoints = false },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        Text("收起中间密集轨迹点", fontSize = 11.sp, color = AppleBlue)
                     }
                 }
 
@@ -792,9 +825,21 @@ fun RouteMockTab(
                     OutlinedButton(
                         onClick = {
                             if (waypoints.isNotEmpty()) {
-                                val ok = GpxExportHelper.exportAndShareGpx(context, waypoints, "路线规划导出", 3.2f)
+                                val ok = GpxExportHelper.exportAndShareGpx(
+                                    context,
+                                    waypoints,
+                                    "路线规划导出",
+                                    (currentSpeedKmh / 3.6f).coerceAtLeast(1.0f),
+                                    isGcj02Input = isGcj02Route
+                                )
                                 if (!ok) {
-                                    GpxExportHelper.copyGpxToClipboard(context, waypoints, "路线规划导出", 3.2f)
+                                    GpxExportHelper.copyGpxToClipboard(
+                                        context,
+                                        waypoints,
+                                        "路线规划导出",
+                                        (currentSpeedKmh / 3.6f).coerceAtLeast(1.0f),
+                                        isGcj02Input = isGcj02Route
+                                    )
                                     Toast.makeText(context, "已复制 GPX XML 文本至剪贴板", Toast.LENGTH_SHORT).show()
                                 }
                             } else {
@@ -908,7 +953,7 @@ fun RouteMockTab(
                                     }
                                     IconButton(
                                         onClick = {
-                                            val gpx = RouteStorageHelper.exportToGpx(route.name, route.waypoints)
+                                            val gpx = RouteStorageHelper.exportToGpx(route.name, route.waypoints, isGcj02Input = isGcj02Route)
                                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                             clipboard.setPrimaryClip(ClipData.newPlainText("GPX", gpx))
                                             Toast.makeText(context, "GPX XML 已复制到剪贴板！", Toast.LENGTH_SHORT).show()

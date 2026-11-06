@@ -218,6 +218,15 @@ class MockLocationEngine(private val context: Context) {
         val nowNanos = SystemClock.elapsedRealtimeNanos()
         val nowMillis = System.currentTimeMillis()
 
+        // 真实卫星可见数与载噪比（防止检测系统通过 0 卫星或空 extras 判定为虚拟定位）
+        val satelliteCount = (profile.baseSatellites + random.nextInt(4)).coerceAtLeast(6)
+        val meanCn0 = 31.5f + random.nextFloat() * 4.0f
+        lastSatelliteCount = satelliteCount
+        lastMeanCn0 = meanCn0
+
+        // 2.8f ~ 4.6f 米高精度微幅波动，完美契合高德/百度定位良好信号阈值 (<= 5.0m)
+        val dynamicAccuracy = (profile.baseAccuracyMeters.coerceAtMost(3.0f) + (random.nextFloat() * 1.2f) + (Math.sin(nowMillis / 1200.0).toFloat() * 0.4f)).coerceIn(2.8f, 4.6f)
+
         // 跨进程同步至 LocationStateProvider（供 LSPosed 模块直接读取）
         LocationStateProvider.updateLocation(
             lat = injectedLat,
@@ -225,14 +234,12 @@ class MockLocationEngine(private val context: Context) {
             alt = currentAltitude,
             spd = speed,
             brg = bearing,
+            acc = dynamicAccuracy,
+            sats = satelliteCount,
+            cn0 = meanCn0,
             active = true
         )
 
-        // 真实卫星可见数与载噪比（防止检测系统通过 0 卫星或空 extras 判定为虚拟定位）
-        val satelliteCount = (profile.baseSatellites + random.nextInt(4)).coerceAtLeast(6)
-        val meanCn0 = 31.5f + random.nextFloat() * 4.0f
-        lastSatelliteCount = satelliteCount
-        lastMeanCn0 = meanCn0
         val extras = Bundle().apply {
             putInt("satellites", satelliteCount)
             putInt("Satellites", satelliteCount)
@@ -248,9 +255,6 @@ class MockLocationEngine(private val context: Context) {
         lastNmeaRmc = NmeaUtils.buildGprmc(injectedLat, injectedLon, speed, bearing, nowMillis)
         lastNmeaGga = NmeaUtils.buildGpgga(injectedLat, injectedLon, currentAltitude, satelliteCount, nowMillis)
         lastNmeaGsv = NmeaUtils.buildGpgsv(satelliteCount, nowMillis).joinToString("\n")
-
-        // 2.8f ~ 4.6f 米高精度微幅波动，完美契合高德/百度定位良好信号阈值 (<= 5.0m)
-        val dynamicAccuracy = (profile.baseAccuracyMeters.coerceAtMost(3.0f) + (random.nextFloat() * 1.2f) + (Math.sin(nowMillis / 1200.0).toFloat() * 0.4f)).coerceIn(2.8f, 4.6f)
 
         val targets = if (registeredProviders.isNotEmpty()) registeredProviders.toList() else getActiveProviders()
         for (provider in targets) {

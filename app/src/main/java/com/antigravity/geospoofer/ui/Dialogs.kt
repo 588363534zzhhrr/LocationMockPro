@@ -620,6 +620,7 @@ fun SaveRouteDialog(
 @Composable
 fun GpxImportDialog(
     presetRoutes: List<PresetRoute>,
+    isGcj02Route: Boolean = true,
     onDismiss: () -> Unit,
     onImported: (List<CoordinateUtils.LatLng>) -> Unit
 ) {
@@ -681,7 +682,7 @@ fun GpxImportDialog(
             Button(
                 onClick = {
                     if (gpxXmlInput.isNotBlank()) {
-                        val pts = RouteStorageHelper.importFromGpx(gpxXmlInput)
+                        val pts = RouteStorageHelper.importFromGpx(gpxXmlInput, convertToGcj02 = isGcj02Route)
                         if (pts.isNotEmpty()) {
                             onImported(pts)
                             onDismiss()
@@ -998,13 +999,29 @@ fun Track400mDialog(
                             listOf(
                                 Pair(1, "1道 400m"),
                                 Pair(2, "2道 407m"),
-                                Pair(4, "4道 423m"),
+                                Pair(3, "3道 415m"),
+                                Pair(4, "4道 423m")
+                            ).forEach { (lane, desc) ->
+                                FilterChip(
+                                    selected = selectedLane == lane,
+                                    onClick = { selectedLane = lane },
+                                    label = { Text(desc, fontSize = 9.sp) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            listOf(
+                                Pair(5, "5道 430m"),
+                                Pair(6, "6道 438m"),
+                                Pair(7, "7道 445m"),
                                 Pair(8, "8道 453m")
                             ).forEach { (lane, desc) ->
                                 FilterChip(
                                     selected = selectedLane == lane,
                                     onClick = { selectedLane = lane },
-                                    label = { Text(desc, fontSize = 10.sp) },
+                                    label = { Text(desc, fontSize = 9.sp) },
                                     modifier = Modifier.weight(1f)
                                 )
                             }

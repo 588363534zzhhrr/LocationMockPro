@@ -15,9 +15,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.lifecycleScope
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -31,8 +35,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,7 +52,6 @@ import com.antigravity.geospoofer.core.RouteStorageHelper
 import com.antigravity.geospoofer.core.UpdateCheckResult
 import com.antigravity.geospoofer.core.UpdateInfo
 import com.antigravity.geospoofer.core.UpdateManager
-import com.antigravity.geospoofer.service.FloatingJoystickService
 import com.antigravity.geospoofer.service.MockLocationService
 import com.antigravity.geospoofer.ui.*
 import com.antigravity.geospoofer.ui.theme.*
@@ -240,17 +246,6 @@ class MainActivity : ComponentActivity() {
                         onResumeRoute = {
                             mockService?.resumeRoute()
                         },
-                        onToggleJoystick = { enable ->
-                            if (enable) {
-                                if (checkOverlayPermission()) {
-                                    startService(Intent(this, FloatingJoystickService::class.java))
-                                } else {
-                                    requestOverlayPermission()
-                                }
-                            } else {
-                                stopService(Intent(this, FloatingJoystickService::class.java))
-                            }
-                        },
                         onSpeedChanged = { speedMps ->
                             mockService?.updateSpeed(speedMps)
                         },
@@ -293,25 +288,6 @@ class MainActivity : ComponentActivity() {
         permissionLauncher.launch(permissions.toTypedArray())
     }
 
-    private fun checkOverlayPermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Settings.canDrawOverlays(this)
-        } else {
-            true
-        }
-    }
-
-    private fun requestOverlayPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val intent = Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:$packageName")
-            )
-            startActivity(intent)
-            Toast.makeText(this, "请授予悬浮窗权限以使用操纵杆", Toast.LENGTH_LONG).show()
-        }
-    }
-
     override fun onDestroy() {
         if (isBound) {
             unbindService(connection)
@@ -334,7 +310,6 @@ fun MainScreen(
     onStopRoute: () -> Unit,
     onPauseRoute: () -> Unit,
     onResumeRoute: () -> Unit,
-    onToggleJoystick: (Boolean) -> Unit,
     onSpeedChanged: (Float) -> Unit,
     onSetJitterEnabled: (Boolean) -> Unit,
     onSetJitterProfile: (MockLocationEngine.JitterProfile) -> Unit,
@@ -346,6 +321,7 @@ fun MainScreen(
     engine: MockLocationEngine? = null
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val powerManager = remember { context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager }
     var isIgnoringBattery by remember {
         mutableStateOf(
@@ -355,21 +331,38 @@ fun MainScreen(
         )
     }
 
+    // 从系统设置页返回时自动刷新电池优化白名单状态
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && powerManager != null) {
+                    isIgnoringBattery = powerManager.isIgnoringBatteryOptimizations(context.packageName)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     // 0: 单点模拟, 1: 路线模拟, 2: 引擎与安全
     var selectedTab by remember { mutableIntStateOf(0) }
 
-    // 地图与视图状态
+    // 地图与视图状态（跨 Tab 共享单实例 WebView，切换 Tab 零重载）
     var isMapExpanded by remember { mutableStateOf(false) }
     val mapController = rememberMapController()
+
+    // 单点定位状态提升（防止切换 Tab 丢失输入坐标）
+    var singleLatText by remember { mutableStateOf("39.908823") }
+    var singleLonText by remember { mutableStateOf("116.397470") }
+    var coordSystemSingle by remember { mutableStateOf("GCJ02") }
 
     // 常用打卡地点收藏夹
     var favoritePlaces by remember { mutableStateOf(FavoritePlacesHelper.loadFavorites(context)) }
     var showAddFavoriteDialog by remember { mutableStateOf(false) }
     var favoriteAddLat by remember { mutableDoubleStateOf(39.908823) }
     var favoriteAddLon by remember { mutableDoubleStateOf(116.397470) }
-
-    // 悬浮窗开关
-    var joystickEnabled by remember { mutableStateOf(false) }
 
     // 弹窗状态
     var showAuditDialog by remember { mutableStateOf(false) }
@@ -463,14 +456,14 @@ fun MainScreen(
     var targetDistanceKm by remember { mutableStateOf<Double?>(null) }
     var isGcj02Route by remember { mutableStateOf(true) }
 
-    // 仿真参数与防检测
+    // 仿真参数与防检测（初始速度与默认 WALK 模式 5.0 km/h 保持一致）
     var enableJitter by remember { mutableStateOf(true) }
     var selectedJitterProfile by remember { mutableStateOf(MockLocationEngine.JitterProfile.OPEN_SKY) }
     var enablePhysiologicalGait by remember { mutableStateOf(true) }
     var enableRandomStops by remember { mutableStateOf(false) }
     var enableFatigueCurve by remember { mutableStateOf(false) }
-    var currentSpeedKmh by remember { mutableFloatStateOf(12f) }
     var selectedSpeedMode by remember { mutableStateOf(RouteSimulator.SpeedMode.WALK) }
+    var currentSpeedKmh by remember { mutableFloatStateOf(RouteSimulator.SpeedMode.WALK.speedMps * 3.6f) }
 
     // 路线持久化管理与 GPX 文件选择器
     var savedRoutes by remember { mutableStateOf(RouteStorageHelper.loadSavedRoutes(context)) }
@@ -483,7 +476,7 @@ fun MainScreen(
                 val inputStream = context.contentResolver.openInputStream(it)
                 val content = inputStream?.bufferedReader()?.use { reader -> reader.readText() }
                 if (!content.isNullOrBlank()) {
-                    val pts = RouteStorageHelper.importFromGpx(content)
+                    val pts = RouteStorageHelper.importFromGpx(content, convertToGcj02 = isGcj02Route)
                     if (pts.isNotEmpty()) {
                         waypoints = pts
                         mapController.setRouteWaypoints(pts)
@@ -517,6 +510,9 @@ fun MainScreen(
     LaunchedEffect(selectedTab) {
         if (selectedTab == 0) {
             mapController.setMode("single")
+            val lat = singleLatText.toDoubleOrNull() ?: 39.908823
+            val lon = singleLonText.toDoubleOrNull() ?: 116.397470
+            mapController.setSinglePoint(lat, lon)
         } else if (selectedTab == 1) {
             mapController.setMode("route")
             mapController.setRouteWaypoints(waypoints)
@@ -524,181 +520,392 @@ fun MainScreen(
         }
     }
 
-    Column(
+    val isAnyMockActive = isMocking || simState.isSimulating
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkBg)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        DarkBg,
+                        Color(0xFF0A1020),
+                        DarkBgDeep
+                    )
+                )
+            )
     ) {
-        // ==================== 苹果风格简约导航栏 ====================
-        Surface(
-            color = AppleCard,
-            border = BorderStroke(0.5.dp, AppleBorder),
-            modifier = Modifier.fillMaxWidth()
+        // ==================== 星夜极光环境散射光晕 (Ambient Aurora Nebula) ====================
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(320.dp)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            (if (isAnyMockActive) TechEmerald else TechBlue).copy(alpha = 0.14f),
+                            TechCyan.copy(alpha = 0.05f),
+                            Color.Transparent
+                        ),
+                        center = Offset(240f, 80f),
+                        radius = 720f
+                    )
+                )
+        )
+
+        Column(
+            modifier = Modifier.fillMaxSize()
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // ==================== 流光毛玻璃顶栏 (Luminous Frosted Top Bar) ====================
+            Surface(
+                color = DarkCard.copy(alpha = 0.86f),
+                border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.09f)),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                // 左侧品牌标识与版本
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = AppleBlue.copy(alpha = 0.15f),
-                        modifier = Modifier.size(34.dp)
+                    // 左侧流光品牌徽标与引擎状态
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    Brush.linearGradient(
+                                        colors = listOf(
+                                            TechBlue,
+                                            TechCyan
+                                        )
+                                    )
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = Color.White.copy(alpha = 0.35f),
+                                    shape = RoundedCornerShape(12.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.NearMe,
+                                imageVector = Icons.Default.Explore,
                                 contentDescription = null,
-                                tint = AppleBlue,
-                                modifier = Modifier.size(17.dp)
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
-                    }
-                    Column {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                text = "LocationMock Pro",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary,
-                                letterSpacing = (-0.3).sp
-                            )
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = AppleCardSubtle,
-                                modifier = Modifier.clickable { triggerUpdateCheck(true) }
+                        Column {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(7.dp)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(3.dp),
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.5.dp)
+                                Text(
+                                    text = "LocationMock Pro",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = TextPrimary,
+                                    letterSpacing = (-0.3).sp
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = TechBlue.copy(alpha = 0.16f),
+                                    border = BorderStroke(0.8.dp, TechCyanLight.copy(alpha = 0.35f)),
+                                    modifier = Modifier.clickable { triggerUpdateCheck(true) }
                                 ) {
-                                    Text(
-                                        text = "v${UpdateManager.getCurrentVersionName(context)}",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = TextSecondary
-                                    )
-                                    if (isCheckingUpdate) {
-                                        CircularProgressIndicator(
-                                            color = AppleBlue,
-                                            modifier = Modifier.size(8.dp),
-                                            strokeWidth = 1.5.dp
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "v${UpdateManager.getCurrentVersionName(context)}",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TechCyanLight
                                         )
+                                        if (isCheckingUpdate) {
+                                            CircularProgressIndicator(
+                                                color = TechCyanLight,
+                                                modifier = Modifier.size(8.dp),
+                                                strokeWidth = 1.5.dp
+                                            )
+                                        }
                                     }
                                 }
                             }
-                        }
-                        Spacer(modifier = Modifier.height(1.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(5.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isRooted) AppleGreen else TextTertiary)
-                            )
-                            Text(
-                                text = if (isRooted) "底层免杀保护已就绪" else "标准模拟模式",
-                                fontSize = 11.sp,
-                                color = TextSecondary
-                            )
-                        }
-                    }
-                }
-
-                // 右侧运行状态指示与动作快捷键
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    StatusPill(
-                        text = when {
-                            simState.isSimulating && simState.isPaused -> "巡航挂起"
-                            simState.isSimulating -> "巡航中"
-                            isMocking -> "模拟中"
-                            else -> "待命"
-                        },
-                        isActive = isMocking || simState.isSimulating,
-                        isPaused = simState.isPaused
-                    )
-
-                    // 悬浮窗开关按钮
-                    Surface(
-                        shape = CircleShape,
-                        color = if (joystickEnabled) AppleBlue else AppleCardSubtle,
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clickable {
-                                joystickEnabled = !joystickEnabled
-                                onToggleJoystick(joystickEnabled)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isRooted) TechEmeraldLight else TechCyanLight)
+                                )
+                                Text(
+                                    text = if (isRooted) "LSPosed 免杀底座已激活" else "高精度动力学引擎已就绪",
+                                    fontSize = 11.sp,
+                                    color = if (isRooted) TechEmeraldLight.copy(alpha = 0.9f) else TextSecondary,
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.FilterFrames,
-                                contentDescription = "悬浮窗",
-                                tint = if (joystickEnabled) Color.White else TextSecondary,
-                                modifier = Modifier.size(15.dp)
-                            )
                         }
                     }
 
-                    // 体检报告按钮
-                    Surface(
-                        shape = CircleShape,
-                        color = AppleCardSubtle,
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clickable { showAuditDialog = true }
+                    // 右侧呼吸胶囊与安全体检徽章
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
+                        StatusPill(
+                            text = when {
+                                simState.isSimulating && simState.isPaused -> "巡航挂起"
+                                simState.isSimulating -> "巡航推流"
+                                isMocking -> "模拟生效"
+                                else -> "待命中"
+                            },
+                            isActive = isAnyMockActive,
+                            isPaused = simState.isPaused
+                        )
+
+                        // 六维体检快捷入口
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    Brush.linearGradient(
+                                        colors = listOf(
+                                            TechEmerald.copy(alpha = 0.22f),
+                                            TechCyan.copy(alpha = 0.12f)
+                                        )
+                                    )
+                                )
+                                .border(
+                                    width = 0.8.dp,
+                                    color = TechEmeraldLight.copy(alpha = 0.4f),
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                                .clickable { showAuditDialog = true },
+                            contentAlignment = Alignment.Center
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.Shield,
+                                imageVector = Icons.Default.VerifiedUser,
                                 contentDescription = "安全体检",
-                                tint = TextSecondary,
-                                modifier = Modifier.size(15.dp)
+                                tint = TechEmeraldLight,
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
                 }
             }
-        }
 
-        // ==================== 现代分段导航栏 ====================
-        Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-            ModernSegmentedTabs(
-                tabs = listOf("单点定位", "路线巡航", "引擎安全"),
-                icons = listOf(Icons.Default.MyLocation, Icons.Default.Route, Icons.Default.Tune),
-                selectedTabIndex = selectedTab,
-                onTabSelected = { selectedTab = it }
-            )
-        }
+            // ==================== 极光悬浮分段导航栏 ====================
+            Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                ModernSegmentedTabs(
+                    tabs = listOf("单点定位", "路线巡航", "引擎安全"),
+                    icons = listOf(Icons.Default.MyLocation, Icons.Default.Route, Icons.Default.Shield),
+                    selectedTabIndex = selectedTab,
+                    onTabSelected = { selectedTab = it }
+                )
+            }
 
-        // ==================== Tab 内容区 ====================
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-        ) {
+            // ==================== Tab 内容区 ====================
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // 跨 Tab 0 / Tab 1 共享单个高德 WebView 实例，并附带地图底部流光速控条
+                if (selectedTab == 0 || selectedTab == 1) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        InteractiveMapCard(
+                            controller = mapController,
+                            mode = if (selectedTab == 0) "single" else "route",
+                            height = if (isMapExpanded) 480.dp else if (selectedTab == 0) 295.dp else 280.dp,
+                            onWaypointsUpdated = { waypoints = it },
+                            onSinglePointSelected = { lat, lon ->
+                                singleLatText = "%.6f".format(lat)
+                                singleLonText = "%.6f".format(lon)
+                            },
+                            onToggleExpand = { isMapExpanded = !isMapExpanded }
+                        )
+
+                        // 地图下方悬浮流光速控舱 (无需滚到底部即可一键启停与查看实时坐标)
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = DarkCardElevated.copy(alpha = 0.92f),
+                            border = BorderStroke(
+                                1.dp,
+                                Brush.horizontalGradient(
+                                    colors = listOf(
+                                        (if (isAnyMockActive) TechEmeraldLight else TechCyanLight).copy(alpha = 0.4f),
+                                        Color.White.copy(alpha = 0.08f)
+                                    )
+                                )
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (selectedTab == 0) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.GpsFixed,
+                                                contentDescription = null,
+                                                tint = if (isMocking) TechEmeraldLight else TechCyanLight,
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Text(
+                                                text = if (isMocking) "实时锁止坐标 ($coordSystemSingle)" else "当前锚定坐标 ($coordSystemSingle)",
+                                                fontSize = 11.sp,
+                                                color = TextSecondary,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "$singleLatText, $singleLonText",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace,
+                                            color = TextPrimary
+                                        )
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            if (isMocking) {
+                                                onStopMock()
+                                            } else {
+                                                val lat = singleLatText.toDoubleOrNull() ?: 39.908823
+                                                val lon = singleLonText.toDoubleOrNull() ?: 116.397470
+                                                val finalCoords = when (coordSystemSingle) {
+                                                    "BD09" -> CoordinateUtils.bd09ToWgs84(lat, lon)
+                                                    "GCJ02" -> CoordinateUtils.gcj02ToWgs84(lat, lon)
+                                                    else -> CoordinateUtils.LatLng(lat, lon)
+                                                }
+                                                onStartMock(finalCoords.latitude, finalCoords.longitude, false)
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (isMocking) TechRose else TechBlue
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isMocking) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = if (isMocking) "停止模拟" else "立即模拟",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                } else {
+                                    val routeTotalDistKm = remember(waypoints) {
+                                        if (waypoints.size < 2) 0.0
+                                        else waypoints.zipWithNext { a, b ->
+                                            CoordinateUtils.calculateDistance(a.latitude, a.longitude, b.latitude, b.longitude)
+                                        }.sum() / 1000.0
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Route,
+                                                contentDescription = null,
+                                                tint = if (simState.isSimulating) TechEmeraldLight else TechCyanLight,
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Text(
+                                                text = if (simState.isSimulating) "实时巡航推流中" else "当前规划航线概览",
+                                                fontSize = 11.sp,
+                                                color = TextSecondary,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = if (simState.isSimulating) {
+                                                "已行进 ${"%.2f".format(simState.distanceCoveredMeters / 1000.0)} km · ${"%.1f".format(simState.currentSpeedMps * 3.6f)} km/h"
+                                            } else {
+                                                "${waypoints.size} 个路点 · 全长 ${"%.2f".format(routeTotalDistKm)} km · ${selectedSpeedMode.label}"
+                                            },
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextPrimary
+                                        )
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            if (simState.isSimulating) {
+                                                onStopRoute()
+                                            } else {
+                                                onSpeedChanged(currentSpeedKmh / 3.6f)
+                                                onStartRoute(waypoints, routeMode, targetDistanceKm?.let { it * 1000.0 }, isGcj02Route)
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (simState.isSimulating) TechRose else TechBlue
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (simState.isSimulating) Icons.Default.Stop else Icons.Default.DirectionsRun,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = if (simState.isSimulating) "结束巡航" else "启动巡航",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
             when (selectedTab) {
                 0 -> SingleMockTab(
                     mapController = mapController,
-                    isMapExpanded = isMapExpanded,
-                    onToggleMapExpand = { isMapExpanded = !isMapExpanded },
+                    latText = singleLatText,
+                    onLatTextChange = { singleLatText = it },
+                    lonText = singleLonText,
+                    onLonTextChange = { singleLonText = it },
+                    coordSystemSingle = coordSystemSingle,
+                    onCoordSystemChange = { coordSystemSingle = it },
                     isMocking = isMocking,
                     onStartMock = onStartMock,
                     onStopMock = onStopMock,
@@ -712,8 +919,6 @@ fun MainScreen(
                 )
                 1 -> RouteMockTab(
                     mapController = mapController,
-                    isMapExpanded = isMapExpanded,
-                    onToggleMapExpand = { isMapExpanded = !isMapExpanded },
                     simState = simState,
                     waypoints = waypoints,
                     onWaypointsChange = { waypoints = it },
@@ -731,16 +936,12 @@ fun MainScreen(
                     selectedSpeedMode = selectedSpeedMode,
                     onSpeedModeChange = { selectedSpeedMode = it },
                     onStartRoute = {
+                        onSpeedChanged(currentSpeedKmh / 3.6f)
                         onStartRoute(waypoints, routeMode, targetDistanceKm?.let { it * 1000.0 }, isGcj02Route)
                     },
                     onStopRoute = onStopRoute,
                     onPauseRoute = onPauseRoute,
                     onResumeRoute = onResumeRoute,
-                    joystickEnabled = joystickEnabled,
-                    onToggleJoystick = {
-                        joystickEnabled = it
-                        onToggleJoystick(it)
-                    },
                     savedRoutes = savedRoutes,
                     presetRoutes = PRESET_ROUTES,
                     onOpenSaveDialog = { showSaveDialog = true },
@@ -769,11 +970,6 @@ fun MainScreen(
                                 context.startActivity(intent)
                             }
                         }
-                    },
-                    joystickEnabled = joystickEnabled,
-                    onToggleJoystick = {
-                        joystickEnabled = it
-                        onToggleJoystick(it)
                     },
                     onOpenAuditDialog = { showAuditDialog = true },
                     isAntiJumpHighFreq = isAntiJumpHighFreq,
@@ -832,6 +1028,7 @@ fun MainScreen(
                 )
             }
         }
+        }
     }
 
     // ==================== 统一弹窗系统 ====================
@@ -876,6 +1073,7 @@ fun MainScreen(
     if (showGpxDialog) {
         GpxImportDialog(
             presetRoutes = PRESET_ROUTES,
+            isGcj02Route = isGcj02Route,
             onDismiss = { showGpxDialog = false },
             onImported = { pts ->
                 waypoints = pts
@@ -886,8 +1084,8 @@ fun MainScreen(
     }
 
     if (showLoopGeneratorDialog) {
-        val center = waypoints.firstOrNull()
-            ?: mapController.currentCenter
+        val center = mapController.currentCenter
+            ?: waypoints.firstOrNull()
             ?: CoordinateUtils.LatLng(39.908823, 116.397470)
         LoopGeneratorDialog(
             centerLat = center.latitude,
@@ -902,8 +1100,8 @@ fun MainScreen(
     }
 
     if (showTrackDialog) {
-        val initialCenter = waypoints.firstOrNull()
-            ?: mapController.currentCenter
+        val initialCenter = mapController.currentCenter
+            ?: waypoints.firstOrNull()
             ?: CoordinateUtils.LatLng(39.908823, 116.397470)
         Track400mDialog(
             initialCenterLat = initialCenter.latitude,

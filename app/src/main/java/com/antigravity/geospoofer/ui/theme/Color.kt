@@ -2,67 +2,78 @@ package com.antigravity.geospoofer.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// ==========================================
-// Apple Human Interface Guidelines Dark Palette
-// iOS / macOS / VisionOS Design System
-// ==========================================
+// ============================================================================
+// Luminous Midnight Glassmorphism Design System (2026 Flagship Palette)
+// Deep Starry Midnight Canvas + Specular Frosted Glass + Radiant Accents
+// ============================================================================
 
-// Apple System Backgrounds
-val AppleBg = Color(0xFF000000)          // Pure OLED Black
-val AppleCard = Color(0xFF1C1C1E)        // iOS SystemGray6 (elevated surface)
-val AppleCardSubtle = Color(0xFF2C2C2E)  // iOS SystemGray5 (secondary card)
-val AppleInputBg = Color(0xFF242426)     // Inset grouped field background
-val AppleDivider = Color(0xFF38383A)     // Hairline separator (0.5dp)
-val AppleBorder = Color.White.copy(alpha = 0.08f) // Subtle glass edge highlight
+// 1. Deep Spatial Midnight Backgrounds
+val DarkBg = Color(0xFF070B14)               // Deep Starry Midnight Canvas
+val DarkBgDeep = Color(0xFF050811)           // Abyssal backdrop
+val DarkCard = Color(0xFF111827)             // Primary frosted glass surface
+val DarkCardElevated = Color(0xFF162033)     // Elevated top-lit glass surface
+val DarkCardSubtle = Color(0xFF1E293B)       // Interactive secondary glass pill
+val DarkInputBg = Color(0xFF0B111E)          // Recessed crystal input well
+val DarkDivider = Color(0xFF1E293B)          // Hairline structural divider
 
-// Apple Accent & Semantic Colors (Restrained)
-val AppleBlue = Color(0xFF0A84FF)        // iOS System Blue
-val AppleGreen = Color(0xFF30D158)       // iOS System Green (Active state only)
-val AppleOrange = Color(0xFFFF9F0A)      // iOS System Orange (Warning / Pause)
-val AppleRed = Color(0xFFFF453A)         // iOS System Red (Stop / Destructive)
-val ApplePurple = Color(0xFFBF5AF2)      // iOS System Purple
-val AppleGray = Color(0xFF8E8E93)        // iOS System Gray
+// 2. Specular Glass Borders & Highlights
+val DarkCardBorder = Color(0x24FFFFFF)       // Crisp translucent border
+val DarkCardBorderGlow = Color(0x5538BDF8)   // Luminous cyan-blue focus border
+val GlassBorderHighlight = Color(0x38FFFFFF) // Top-left specular light catch
+val GlassBorderSubtle = Color(0x0DFFFFFF)    // Bottom-right muted glass edge
+val GlassSurfaceHighlight = Color(0x0AFFFFFF)// Subtle inner glass sheen
 
-// Apple Label Typography Colors
-val TextPrimary = Color(0xFFFFFFFF)      // Apple Primary Label
-val TextSecondary = Color(0xFF8E8E93)    // Apple Secondary Label
-val TextTertiary = Color(0xFF636366)     // Apple Tertiary / Caption Label
-val TextQuaternary = Color(0xFF48484A)   // Apple Quaternary Label
+// 3. Radiant Semantic & Accent Colors
+val TechBlue = Color(0xFF3B82F6)             // Electric Royal Blue
+val TechBlueLight = Color(0xFF60A5FA)        // Luminous Sky Blue
+val TechIndigo = Color(0xFF6366F1)           // Aurora Indigo
+val TechIndigoLight = Color(0xFF818CF8)      // Soft Neon Indigo
+val TechCyan = Color(0xFF06B6D4)             // Cyber Telemetry Cyan
+val TechCyanLight = Color(0xFF22D3EE)        // Radiant Ice Cyan
 
-// Status Capsule Colors (Restrained Apple Dynamic Island Aesthetic)
-val StatusActiveBg = Color(0xFF1C1C1E)
-val StatusActiveText = Color(0xFFFFFFFF)
-val StatusPauseBg = Color(0xFF1C1C1E)
-val StatusPauseText = Color(0xFFFF9F0A)
-val StatusIdleBg = Color(0xFF1C1C1E)
-val StatusIdleText = Color(0xFF8E8E93)
+val TechEmerald = Color(0xFF10B981)          // Active Signal Emerald
+val TechEmeraldLight = Color(0xFF34D399)     // Luminous Mint Emerald
+val TechEmeraldDark = Color(0xFF064E3B)      // Deep Emerald Aura
+val TechEmeraldSurface = Color(0xFF0D2824)   // Tinted Emerald Glass
 
-// Backward-compatibility aliases for existing references
-val TechBlue = AppleBlue
-val TechBlueLight = AppleBlue
-val TechCyan = AppleBlue
-val TechCyanLight = AppleBlue
-val TechEmerald = AppleGreen
-val TechEmeraldLight = AppleGreen
-val TechEmeraldDark = Color(0xFF1C2D22)
-val TechEmeraldSurface = AppleCard
-val TechAmber = AppleOrange
-val TechAmberLight = AppleOrange
-val TechAmberDark = Color(0xFF332314)
-val TechAmberSurface = AppleCard
-val TechRose = AppleRed
-val TechRoseLight = AppleRed
-val TechRoseDark = Color(0xFF3A1818)
-val TechRoseSurface = AppleCard
-val TechPurple = ApplePurple
-val TechPurpleLight = ApplePurple
-val TechPurpleDark = Color(0xFF2B1638)
-val DarkBg = AppleBg
-val DarkCard = AppleCard
-val DarkCardSubtle = AppleCardSubtle
-val DarkCardBorder = AppleBorder
-val DarkCardBorderGlow = AppleBlue.copy(alpha = 0.25f)
-val DarkInputBg = AppleInputBg
-val DarkDivider = AppleDivider
-val GlassBorderHighlight = Color.White.copy(alpha = 0.08f)
-val GlassSurfaceHighlight = Color.White.copy(alpha = 0.03f)
+val TechAmber = Color(0xFFF59E0B)            // Solar Warning / Track Gold
+val TechAmberLight = Color(0xFFFBBF24)       // Radiant Amber
+val TechAmberDark = Color(0xFF451A03)        // Deep Amber Aura
+val TechAmberSurface = Color(0xFF291D12)     // Tinted Amber Glass
+
+val TechRose = Color(0xFFF43F5E)             // Destructive / Stop Crimson Rose
+val TechRoseLight = Color(0xFFFB7185)        // Soft Coral Rose
+val TechRoseDark = Color(0xFF4C0519)         // Deep Rose Aura
+val TechRoseSurface = Color(0xFF2D121E)      // Tinted Rose Glass
+
+val TechPurple = Color(0xFF8B5CF6)           // AI & Stealth Violet
+val TechPurpleLight = Color(0xFFA78BFA)      // Luminous Orchid Purple
+val TechPurpleDark = Color(0xFF2E1065)       // Deep Violet Aura
+
+// 4. High-Contrast Crisp Typography Hierarchy
+val TextPrimary = Color(0xFFF8FAFC)          // Pure Ice White
+val TextSecondary = Color(0xFF94A3B8)        // Cool Metallic Silver
+val TextTertiary = Color(0xFF64748B)         // Muted Slate Caption
+val TextQuaternary = Color(0xFF475569)       // Subtle Disabled Slate
+
+// 5. Status Capsule Tokens
+val StatusActiveBg = Color(0x2410B981)
+val StatusActiveText = Color(0xFF34D399)
+val StatusPauseBg = Color(0x24F59E0B)
+val StatusPauseText = Color(0xFFFBBF24)
+val StatusIdleBg = Color(0xFF172033)
+val StatusIdleText = Color(0xFF94A3B8)
+
+// 6. Compatibility Aliases (Mapped to Luminous Glass Tokens)
+val AppleBg = DarkBg
+val AppleCard = DarkCard
+val AppleCardSubtle = DarkCardSubtle
+val AppleInputBg = DarkInputBg
+val AppleDivider = DarkDivider
+val AppleBorder = DarkCardBorder
+val AppleBlue = TechBlue
+val AppleGreen = TechEmerald
+val AppleOrange = TechAmber
+val AppleRed = TechRose
+val ApplePurple = TechPurple
+val AppleGray = TextSecondary

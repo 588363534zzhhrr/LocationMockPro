@@ -428,11 +428,22 @@ object UpdateManager {
             return UpdateInstallResult.Failed("安装包文件不存在或已损坏")
         }
 
+        // 安全校验：验证下载的 APK 归档合法且包名与当前应用完全一致，防止镜像劫持注入异包
+        val archiveInfo = try {
+            context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
+        } catch (_: Exception) {
+            null
+        }
+        if (archiveInfo == null || archiveInfo.packageName != context.packageName) {
+            apkFile.delete()
+            return UpdateInstallResult.Failed("安装包签名或包名校验不通过，已拦截安装")
+        }
+
         // 优先使用 Root 静默安装
         if (RootHelper.isDeviceRooted()) {
             val tmpPath = "/data/local/tmp/update_install.apk"
             val copyAndInstallCmd =
-                "cat '${apkFile.absolutePath}' > '$tmpPath' && chmod 666 '$tmpPath' && pm install -r -d -t -g '$tmpPath'; rm -f '$tmpPath'"
+                "cat '${apkFile.absolutePath}' > '$tmpPath' && chmod 644 '$tmpPath' && pm install -r -d -g '$tmpPath'; rm -f '$tmpPath'"
             val result = RootHelper.executeRootCommand(copyAndInstallCmd)
             if (result.success && (result.output.contains("Success", ignoreCase = true) || result.error.contains("Success", ignoreCase = true))) {
                 return UpdateInstallResult.SilentSuccess("Root 静默升级成功！请重启应用生效")

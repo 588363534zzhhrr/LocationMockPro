@@ -2,14 +2,14 @@
 
 [![Android](https://img.shields.io/badge/Platform-Android%208.0%20~%2015%20(API%2026--35)-brightgreen.svg)](https://developer.android.com)
 [![Architecture Rating](https://img.shields.io/badge/Architecture%20Review-S%2B%20(Production--Ready)-success.svg)](https://github.com/SyncPulseDev/LocationMockPro)
-[![Version](https://img.shields.io/badge/Version-v1.2.8-blue.svg)](https://github.com/SyncPulseDev/LocationMockPro/releases)
+[![Version](https://img.shields.io/badge/Version-v1.2.9-blue.svg)](https://github.com/SyncPulseDev/LocationMockPro/releases)
 [![LSPosed](https://img.shields.io/badge/Module-LSPosed%20%2F%20Xposed%20Supported-purple.svg)](https://github.com/LSPosed/LSPosed)
 [![Kotlin](https://img.shields.io/badge/Language-Kotlin%202.0%2B-blue.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-purple.svg)](https://developer.android.com/jetpack/compose)
-[![Release Package](https://img.shields.io/badge/Release%20APK-1.53%20MB%20(R8%20Optimized)-informational.svg)](https://github.com/SyncPulseDev/LocationMockPro/releases)
+[![Release Package](https://img.shields.io/badge/Release%20APK-1.22%20MB%20(R8%20Optimized)-informational.svg)](https://github.com/SyncPulseDev/LocationMockPro/releases)
 [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg)](LICENSE)
 
-`LocationMockPro` 是一套面向移动安全研究、高精度自动化测试与地理位置算法验证的 **工业级 Android 深度仿真框架**。项目不仅提供全套高拟真传感器动力学算法与悬浮微操交互，更深度集成了原生 **LSPosed / Xposed 系统底层免杀 Hook 引擎**，具备全闭环的物理与无线电环境指纹伪装能力，正式获评 **S+ 级（Release 产线封版状态）** 工业级交付标准。
+`LocationMockPro` 是一套面向移动安全研究、高精度自动化测试与地理位置算法验证的 **工业级 Android 深度仿真框架**。项目不仅提供全套高拟真传感器动力学算法与跨 Tab 零重载高德地图交互，更深度集成了原生 **LSPosed / Xposed 系统底层免杀 Hook 引擎**，具备全闭环的物理与无线电环境指纹伪装能力，正式获评 **S+ 级（Release 产线封版状态）** 工业级交付标准。
 
 ---
 
@@ -46,24 +46,18 @@
 - **地图视野中心感知与车标火星坐标纠偏**：地图视野移动时实时同步视野中心点，未选点时智能锚定当前屏幕中心；路线模拟巡航时自动对车标位置进行 GCJ-02 动态纠偏，保证车标与高德/卫星航线绝对对齐贴合。
 - **道路吸附 WGS-84 / GCJ-02 双向纠偏引擎**：OpenStreetMap OSRM 拓扑引擎在请求前先将 GCJ-02 转为 WGS-84，吸附返回后再转回 GCJ-02，彻底消除两点吸附在地图上的 500m~1km 剧烈偏移问题。
 
-### 6. 🪟 灵动悬浮控制岛 Pro & 巡航自走锁定 (Cruise Lock)
-- **极简灵动药丸模式 (Mini Capsule)**：一键折叠为贴边极小胶囊（`🕹️ 📍 7.2km/h · 1.0km ↗️`），在微信、打卡或游戏界面无遮挡；轻点即刻平滑展开。
-- **一键巡航锁定 (Cruise Lock)**：新增 `🔒 巡航自走锁定`，松开手指后沿当前航向与速度自动持续前行，免除长途游戏与跑量模拟时的按压疲劳。
-- **独立米级四向微调键**：集成 `[⬆️ 北微调]`、`[⬇️ 南]`、`[⬅️ 西]`、`[➡️ 东]`，单击精准向指定方位步进 2 米，专为高精度电子围栏打卡打造。
-- **摇杆触控防抖重构**：将触摸监听移至外层固定容器，推杆时如引擎未就绪自动补齐启动，彻底杜绝相对坐标反馈引起的抖动。
-
-### 7. 🛡️ 前台服务强保活与三级 IPC 容错防崩
+### 6. 🛡️ 前台服务强保活与三级低延迟 IPC 容错防崩
 - **前台服务强生命周期守护**：显式结合 `startForegroundService` 与 `bindService`，彻底解决切出后台/锁屏时 Activity 销毁导致模拟定位服务被系统回收的致命缺陷。
 - **`WeakReference` 闭包解耦双保险**：`ListenerDispatcher` 采用弱引用持有宿主 `LocationListener`，在派发 Runnable 内部**二次动态解引** `weakRef.get()`，结合 `pruneStaleDispatchers()` 存活性清扫，根除长尾劣质 App 忘记注销引发的 Activity 内存泄漏。
-- **三级容错 IPC 通道**：
-  - **Tier 1**：毫秒级 `ContentResolver.call("getState")` 极速跨进程通信（250ms 高频刷新）；
+- **三级容错 IPC 通道与异步节流落盘**：
+  - **Tier 1**：毫秒级 `ContentResolver.call("getState")` 极速跨进程内存通信（250ms 高频刷新）；
   - **Tier 2**：`ContentResolver.query()` 基于 `MatrixCursor` 自动降级退避；
-  - **Tier 3**：LSPosed 原生 `XSharedPreferences`（`location_mock_pro_stealth_prefs`）只读持久化兜底，确保在极端沙箱环境下 100% 通信可达且永不阻塞或弄崩宿主应用。
+  - **Tier 3**：LSPosed 原生 `XSharedPreferences`（`location_mock_pro_stealth_prefs`）只读持久化兜底，后台独立 I/O 线程按 1Hz 节流同步 `commit()` 并自动维持 `0644` 跨进程可读权限，彻底消除高频 `apply()` 原子重命名导致的权限丢失与主线程 `QueuedWork` 卡顿。
 
-### 8. 🔄 智能在线自动更新与 Root 静默热升级 (`UpdateManager.kt`)
+### 7. 🔄 智能在线自动更新与 Root 静默热升级 (`UpdateManager.kt`)
 - **双通道云端版本检测**：基于 GitHub Releases API 与轻量 `update.json` 双协议检测，冷启动智能轻量探测，严格遵循 SemVer 语义化版本规范。
 - **国内反代镜像极速下载 (gh-proxy)**：内置国内 CDN 镜像下载加速开关，具备镜像与官方源自动故障切换 (Failover) 与流式断点汇报。
-- **Root 极速静默秒升 (Seamless Silent Upgrade)**：若设备具备 Root（KernelSU / Magisk / su），采用 `pm install -r` 实施无感热更新，无需用户点击系统确认框；非 Root 环境无缝降级调起系统 `PackageInstaller`。
+- **安装包完整性校验与 Root 极速静默秒升**：执行安装前强制校验 APK 归档合法性与包名一致性，若设备具备 Root（KernelSU / Magisk / su），采用 `pm install -r` 实施无感热更新；非 Root 环境无缝降级调起系统 `PackageInstaller`。
 - **现代暗黑仪表盘弹窗**：实时呈现发布日志、版本号、下载进度百分比、已下载/总计 MB，支持后台下载与异常重试。
 
 ---
@@ -73,8 +67,8 @@
 ```text
 LocationMockPro/
 ├── app/
-│   ├── build.gradle.kts                         # 产线级 R8 混淆配置与编译管线 (v1.1.1)
-│   ├── proguard-rules.pro                       # Xposed、Provider、Models 反射防剔除规则
+│   ├── build.gradle.kts                         # 产线级 R8 代码混淆与资源收缩编译管线
+│   ├── proguard-rules.pro                       # Xposed、Provider、WebView Bridge 精准保留规则
 │   └── src/main/
 │       ├── AndroidManifest.xml                  # queries 包可见性、多进程 Provider 声明
 │       ├── assets/xposed_init                   # LSPosed 模块入口定义 (com.antigravity.geospoofer.hook.XposedEntry)
@@ -82,29 +76,28 @@ LocationMockPro/
 │       │   ├── values/arrays.xml                # LSPosed 建议作用域预置列表 (14 款核心与校园 App)
 │       │   └── xml/file_paths.xml               # GPX 安全分享路径配置
 │       └── java/com/antigravity/geospoofer/
-│           ├── MainActivity.kt                  # Jetpack Compose M3 核心控制台 (含400m操场与多坐标系)
+│           ├── MainActivity.kt                  # Jetpack Compose M3 核心控制台 (跨 Tab 共享单实例 WebView)
 │           ├── hook/
 │           │   └── XposedEntry.kt               # LSPosed 终极免杀、主动计步仿真与物理状态机自治
 │           ├── provider/
-│           │   └── LocationStateProvider.kt     # 跨进程毫秒级 IPC 双模状态广播 Provider
+│           │   └── LocationStateProvider.kt     # 跨进程毫秒级 IPC 双模状态广播与异步节流落盘 Provider
 │           ├── core/
 │           │   ├── MockLocationEngine.kt        # 底层双 Provider 注入与 NMEA GSV/GGA 发生器
 │           │   ├── RouteSimulator.kt            # 动力学步态、拐角减速、折返与目标守护
 │           │   ├── CoordinateUtils.kt           # WGS-84 / GCJ-02 / BD-09 互转与标准400m操场生成
 │           │   ├── RoadSnapHelper.kt            # 双向纠偏 OSRM 道路吸附规划器
 │           │   ├── AntiDetectionAuditHelper.kt  # 六维防检测体检中心
-│           │   ├── GpxExportHelper.kt           # 标准 GPX 1.1 轨迹导出与分享
-│           │   └── RouteStorageHelper.kt        # 路线持久化与收藏夹
+│           │   ├── GpxExportHelper.kt           # 标准 GPX 1.1 (WGS-84 + 三频段微地形) 轨迹导出与分享
+│           │   └── RouteStorageHelper.kt        # 路线持久化、GPX/KML 自动纠偏导入与收藏夹
 │           ├── service/
-│           │   ├── MockLocationService.kt       # 前台常驻保活与防休眠定位服务
-│           │   └── FloatingJoystickService.kt   # 全局灵动胶囊悬浮窗与平滑防抖操纵
+│           │   └── MockLocationService.kt       # 前台常驻保活与防休眠定位服务
 │           └── ui/
 │               ├── Components.kt                # 极客暗黑风玻璃卡片、呼吸状态胶囊、遥测指标磁贴
 │               ├── SingleMockTab.kt             # 单点定位控制中心 (地图选点、快速城市、打卡收藏)
-│               ├── RouteMockTab.kt              # 路线巡航控制台 (4-Grid 航空级遥测HUD、路点与预设管理)
+│               ├── RouteMockTab.kt              # 路线巡航控制台 (4-Grid 航空级遥测HUD、折叠长路点与预设管理)
 │               ├── EngineDefenseTab.kt          # 极客引擎与安全防护中心 (Root/LSPosed、4Hz防跳、高斯抖动、Wi-Fi基站伪装)
-│               ├── Dialogs.kt                   # 统一暗黑弹窗系统 (体检报告、基站伪装、防跳指南等)
-│               ├── MapWebView.kt                # 交互式路线标点地图
+│               ├── Dialogs.kt                   # 统一暗黑弹窗系统 (体检报告、基站伪装、1~8全道次操场校准等)
+│               ├── MapWebView.kt                # 响应式交互式路线标点地图
 │               └── theme/                       # 极客座舱暗黑主题 (Dark Precision Design System)
 ```
 
@@ -126,6 +119,17 @@ LocationMockPro/
 ---
 
 ## 📝 更新日志 (Changelog)
+
+### v1.2.9 (Build 14) - 2026-11-06
+- **✨ 现代流光玻璃拟态设计体系重构 (Luminous Midnight Glassmorphism)**：
+  - **星夜极光光影画布**：底色升级为深邃星夜渐变（`#070B14` → `#050811`），搭载随模拟/巡航状态动态呼吸切换的环境极光散射光晕（Ambient Aurora Nebula）；
+  - **斜向高光折射毛玻璃卡片 (`GlassCard`)**：配备顶部流光反射细线（Specular Shimmer Line）、斜向高光描边与多维语义主题色环境阴影；
+  - **宝石微光磁贴与极光导航坞**：重构极光渐变分段导航栏、连续呼吸脉冲状态胶囊与 5 色独立宝石微光轨迹工具箱磁贴。
+- **🚀 地图下方「悬浮流光速控舱」与交互提效**：
+  - 在「单点定位」与「路线巡航」地图卡片正下方新增流光速控舱，实时呈现当前锁止坐标或航线总里程（km），无需滚到底部即可一键启停单点模拟与路线巡航；
+  - 高德地图浮层控件、搜索框与提示条同步升级为深海毛玻璃与极光高亮风格，支持长轨迹中间密集路点智能折叠。
+- **🧹 架构精简与性能调优**：
+  - 移除冗余悬浮摇杆服务，R8 混淆压缩后 Release 安装包体积进一步精简至 **1.22 MB**。
 
 ### v1.2.8 (Build 13) - 2026-11-05
 - **🛡️ 阻断伪传感器内核句柄下穿（Handle 0 冲突彻底根除）**：

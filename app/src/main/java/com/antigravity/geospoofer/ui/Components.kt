@@ -1,9 +1,16 @@
 package com.antigravity.geospoofer.ui
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -14,59 +21,123 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.antigravity.geospoofer.ui.theme.*
 
 /**
- * 苹果风格 Inset Grouped 卡片 (iOS Inset Grouped Card)
- * 采用深色模式系统灰色 SystemGray6，配备超微发丝线边框
+ * 流光毛玻璃卡片 (Luminous Frosted Glass Card)
+ * 具备顶光斜向高光折射边框、深邃微光渐变基底与空间阴影层次
  */
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
-    cornerRadius: Dp = 16.dp,
-    containerColor: Color = AppleCard,
-    borderColor: Color = AppleBorder,
-    borderWidth: Dp = 0.5.dp,
-    contentPadding: PaddingValues = PaddingValues(16.dp),
+    cornerRadius: Dp = 20.dp,
+    containerColor: Color = DarkCard,
+    borderColor: Color = GlassBorderHighlight,
+    borderWidth: Dp = 1.dp,
+    accentGlowColor: Color? = null,
+    contentPadding: PaddingValues = PaddingValues(18.dp),
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val shape = RoundedCornerShape(cornerRadius)
+    val topBorderColor = accentGlowColor?.copy(alpha = 0.55f)
+        ?: if (borderColor == AppleBorder || borderColor == DarkCardBorder) GlassBorderHighlight else borderColor
+    val bottomBorderColor = accentGlowColor?.copy(alpha = 0.12f) ?: GlassBorderSubtle
+
+    val borderBrush = Brush.linearGradient(
+        colors = listOf(
+            topBorderColor,
+            Color.White.copy(alpha = 0.10f),
+            bottomBorderColor
+        ),
+        start = Offset(0f, 0f),
+        end = Offset(900f, 900f)
+    )
+
+    val surfaceBrush = Brush.linearGradient(
+        colors = listOf(
+            DarkCardElevated.copy(alpha = 0.92f),
+            containerColor.copy(alpha = 0.96f),
+            Color(0xFF0C1220).copy(alpha = 0.98f)
+        ),
+        start = Offset(0f, 0f),
+        end = Offset(0f, 800f)
+    )
+
     Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(cornerRadius),
-        color = containerColor,
-        border = BorderStroke(borderWidth, borderColor)
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 10.dp,
+                shape = shape,
+                ambientColor = accentGlowColor?.copy(alpha = 0.25f) ?: Color.Black.copy(alpha = 0.6f),
+                spotColor = accentGlowColor?.copy(alpha = 0.35f) ?: Color.Black.copy(alpha = 0.7f)
+            ),
+        shape = shape,
+        color = Color.Transparent
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(contentPadding),
-            content = content
-        )
+                .background(brush = surfaceBrush, shape = shape)
+                .border(width = borderWidth, brush = borderBrush, shape = shape)
+        ) {
+            // 顶部微光流光反射线 (Top Specular Shimmer Line)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                (accentGlowColor ?: TechCyanLight).copy(alpha = 0.35f),
+                                Color.White.copy(alpha = 0.25f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(contentPadding),
+                content = content
+            )
+        }
     }
 }
 
 /**
- * 苹果风格模块分组标题 (iOS Group Header)
- * 极简、克制、富有层次
+ * 精致空间分组标题 (Luminous Section Header)
+ * 配备宝石质感渐变微光图标底座与高对比度胶囊徽章
  */
 @Composable
 fun TechSectionHeader(
     title: String,
     icon: ImageVector? = null,
-    iconTint: Color = AppleBlue,
+    iconTint: Color = TechCyanLight,
     badgeText: String? = null,
-    badgeColor: Color = TextSecondary,
+    badgeColor: Color = TechCyanLight,
     actionSlot: @Composable (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val effectiveTint = if (iconTint == TextPrimary) TechCyanLight else iconTint
+    val effectiveBadgeColor = if (badgeColor == TextSecondary) TechBlueLight else badgeColor
+
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -74,35 +145,58 @@ fun TechSectionHeader(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.weight(1f, fill = false)
         ) {
             if (icon != null) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = iconTint,
-                    modifier = Modifier.size(17.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    effectiveTint.copy(alpha = 0.24f),
+                                    effectiveTint.copy(alpha = 0.08f)
+                                )
+                            )
+                        )
+                        .border(
+                            width = 0.8.dp,
+                            color = effectiveTint.copy(alpha = 0.38f),
+                            shape = RoundedCornerShape(9.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = effectiveTint,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
             Text(
                 text = title,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
                 color = TextPrimary,
-                letterSpacing = (-0.2).sp
+                letterSpacing = (-0.2).sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             if (badgeText != null) {
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = AppleCardSubtle
+                    shape = RoundedCornerShape(50),
+                    color = effectiveBadgeColor.copy(alpha = 0.14f),
+                    border = BorderStroke(0.8.dp, effectiveBadgeColor.copy(alpha = 0.36f))
                 ) {
                     Text(
                         text = badgeText,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = TextSecondary,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = effectiveBadgeColor,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.5.dp)
                     )
                 }
             }
@@ -114,8 +208,7 @@ fun TechSectionHeader(
 }
 
 /**
- * 苹果灵动岛风格状态胶囊 (Dynamic Island Pill)
- * 克制、纯净，以细微状态圆点提示运行状态
+ * 灵动呼吸光晕状态胶囊 (Breathing Luminous Status Pill)
  */
 @Composable
 fun StatusPill(
@@ -124,43 +217,94 @@ fun StatusPill(
     isPaused: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val infiniteTransition = rememberInfiniteTransition(label = "statusPulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 0.9f,
+        targetValue = 1.65f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseScale"
+    )
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.65f,
+        targetValue = 0.12f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseAlpha"
+    )
+
     val dotColor = when {
-        isPaused -> AppleOrange
-        isActive -> AppleGreen
+        isPaused -> TechAmberLight
+        isActive -> TechEmeraldLight
         else -> TextTertiary
     }
 
+    val containerBg = when {
+        isPaused -> TechAmber.copy(alpha = 0.14f)
+        isActive -> TechEmerald.copy(alpha = 0.14f)
+        else -> DarkCardSubtle.copy(alpha = 0.75f)
+    }
+
+    val borderCol = when {
+        isPaused -> TechAmberLight.copy(alpha = 0.45f)
+        isActive -> TechEmeraldLight.copy(alpha = 0.45f)
+        else -> GlassBorderHighlight
+    }
+
+    val textCol = when {
+        isPaused -> TechAmberLight
+        isActive -> TechEmeraldLight
+        else -> TextSecondary
+    }
+
     Surface(
-        color = AppleCardSubtle,
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(0.5.dp, AppleBorder),
+        color = containerBg,
+        shape = RoundedCornerShape(50),
+        border = BorderStroke(0.8.dp, borderCol),
         modifier = modifier
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 11.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(7.dp)
         ) {
             Box(
-                modifier = Modifier
-                    .size(6.dp)
-                    .clip(CircleShape)
-                    .background(dotColor)
-            )
+                modifier = Modifier.size(10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isActive || isPaused) {
+                    Box(
+                        modifier = Modifier
+                            .size(9.dp)
+                            .scale(pulseScale)
+                            .clip(CircleShape)
+                            .background(dotColor.copy(alpha = pulseAlpha))
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(6.5.dp)
+                        .clip(CircleShape)
+                        .background(dotColor)
+                )
+            }
             Text(
                 text = text,
-                color = TextPrimary,
+                color = textCol,
                 fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                letterSpacing = (-0.1).sp
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.2.sp
             )
         }
     }
 }
 
 /**
- * 苹果健身/健康风格指标磁贴 (Apple Health / Fitness Tile)
- * 极简留白、高对比大数字排版
+ * 航空级流光遥测磁贴 (Luminous Telemetry Tile)
  */
 @Composable
 fun MetricTile(
@@ -168,45 +312,71 @@ fun MetricTile(
     label: String,
     value: String,
     unit: String,
-    accentColor: Color = AppleBlue,
+    accentColor: Color = TechCyanLight,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        color = AppleInputBg,
-        border = BorderStroke(0.5.dp, AppleBorder)
+    val shape = RoundedCornerShape(15.dp)
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        accentColor.copy(alpha = 0.12f),
+                        DarkInputBg.copy(alpha = 0.95f)
+                    ),
+                    start = Offset(0f, 0f),
+                    end = Offset(300f, 300f)
+                )
+            )
+            .border(
+                width = 0.8.dp,
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        accentColor.copy(alpha = 0.42f),
+                        Color.White.copy(alpha = 0.06f)
+                    )
+                ),
+                shape = shape
+            )
+            .padding(horizontal = 13.dp, vertical = 11.dp)
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = TextSecondary,
-                    modifier = Modifier.size(13.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(accentColor.copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = accentColor,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
                 Text(
-                    text = label.uppercase(),
-                    fontSize = 10.sp,
+                    text = label,
+                    fontSize = 11.sp,
                     color = TextSecondary,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 0.5.sp
+                    fontWeight = FontWeight.Medium
                 )
             }
             Row(
                 verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
                     text = value,
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold,
                     color = TextPrimary,
                     fontFamily = FontFamily.Monospace,
                     letterSpacing = (-0.5).sp
@@ -214,8 +384,8 @@ fun MetricTile(
                 Text(
                     text = unit,
                     fontSize = 11.sp,
-                    color = TextSecondary,
-                    fontWeight = FontWeight.Normal,
+                    color = accentColor.copy(alpha = 0.9f),
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = 2.dp)
                 )
             }
@@ -224,7 +394,7 @@ fun MetricTile(
 }
 
 /**
- * 苹果原生风格设置切换行 (iOS Settings Row)
+ * 精致空间设置开关行 (Luminous Setting Toggle Row)
  */
 @Composable
 fun SettingToggleRow(
@@ -233,12 +403,13 @@ fun SettingToggleRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     icon: ImageVector? = null,
-    iconColor: Color = AppleBlue,
+    iconColor: Color = TechCyanLight,
     modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
             .clickable { onCheckedChange(!checked) }
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -250,26 +421,40 @@ fun SettingToggleRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (icon != null) {
-                Surface(
-                    color = iconColor.copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = iconColor,
-                            modifier = Modifier.size(17.dp)
+                val activeTint = if (checked) iconColor else TextSecondary
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            Brush.linearGradient(
+                                colors = if (checked) {
+                                    listOf(iconColor.copy(alpha = 0.24f), iconColor.copy(alpha = 0.08f))
+                                } else {
+                                    listOf(DarkCardSubtle, DarkInputBg)
+                                }
+                            )
                         )
-                    }
+                        .border(
+                            width = 0.8.dp,
+                            color = if (checked) iconColor.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.08f),
+                            shape = RoundedCornerShape(10.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = activeTint,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.SemiBold,
                     color = TextPrimary,
                     letterSpacing = (-0.1).sp
                 )
@@ -290,17 +475,18 @@ fun SettingToggleRow(
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
-                checkedTrackColor = AppleGreen,
-                uncheckedThumbColor = Color(0xFFE5E5EA),
-                uncheckedTrackColor = Color(0xFF39393D),
-                uncheckedBorderColor = Color.Transparent
+                checkedTrackColor = TechEmerald,
+                checkedBorderColor = TechEmeraldLight.copy(alpha = 0.5f),
+                uncheckedThumbColor = Color(0xFF94A3B8),
+                uncheckedTrackColor = DarkInputBg,
+                uncheckedBorderColor = Color.White.copy(alpha = 0.14f)
             )
         )
     }
 }
 
 /**
- * 苹果原生分段选择控制器 (iOS Segmented Control)
+ * 极光悬浮分段导航坞 (Aurora Floating Segmented Dock)
  */
 @Composable
 fun ModernSegmentedTabs(
@@ -313,44 +499,72 @@ fun ModernSegmentedTabs(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .height(42.dp),
-        shape = RoundedCornerShape(10.dp),
-        color = AppleCardSubtle,
-        border = BorderStroke(0.5.dp, AppleBorder)
+            .height(48.dp)
+            .shadow(8.dp, RoundedCornerShape(15.dp), spotColor = Color.Black.copy(alpha = 0.6f)),
+        shape = RoundedCornerShape(15.dp),
+        color = DarkInputBg.copy(alpha = 0.95f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(2.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             tabs.forEachIndexed { index, title ->
                 val isSelected = selectedTabIndex == index
-                val animBg by animateColorAsState(
-                    targetValue = if (isSelected) Color(0xFF636366) else Color.Transparent,
-                    animationSpec = tween(180),
-                    label = "tabBg"
-                )
                 val animText by animateColorAsState(
                     targetValue = if (isSelected) Color.White else TextSecondary,
-                    animationSpec = tween(180),
+                    animationSpec = tween(220),
                     label = "tabText"
                 )
+                val scale by animateFloatAsState(
+                    targetValue = if (isSelected) 1.0f else 0.97f,
+                    animationSpec = tween(220),
+                    label = "tabScale"
+                )
 
-                Surface(
+                val itemShape = RoundedCornerShape(11.dp)
+                Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .clip(RoundedCornerShape(8.dp))
+                        .scale(scale)
+                        .clip(itemShape)
+                        .then(
+                            if (isSelected) {
+                                Modifier
+                                    .background(
+                                        brush = Brush.horizontalGradient(
+                                            colors = listOf(
+                                                Color(0xFF2563EB),
+                                                Color(0xFF0891B2),
+                                                Color(0xFF06B6D4)
+                                            )
+                                        ),
+                                        shape = itemShape
+                                    )
+                                    .border(
+                                        width = 0.8.dp,
+                                        brush = Brush.verticalGradient(
+                                            colors = listOf(
+                                                Color.White.copy(alpha = 0.42f),
+                                                Color.White.copy(alpha = 0.08f)
+                                            )
+                                        ),
+                                        shape = itemShape
+                                    )
+                            } else {
+                                Modifier.background(Color.Transparent)
+                            }
+                        )
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) { onTabSelected(index) },
-                    shape = RoundedCornerShape(8.dp),
-                    color = animBg
+                    contentAlignment = Alignment.Center
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxSize(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
@@ -359,16 +573,16 @@ fun ModernSegmentedTabs(
                                 imageVector = icons[index],
                                 contentDescription = null,
                                 tint = animText,
-                                modifier = Modifier.size(15.dp)
+                                modifier = Modifier.size(16.dp)
                             )
-                            Spacer(modifier = Modifier.width(5.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                         }
                         Text(
                             text = title,
-                            fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                            fontSize = 12.5.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                             color = animText,
-                            letterSpacing = (-0.2).sp
+                            letterSpacing = (-0.1).sp
                         )
                     }
                 }
@@ -378,8 +592,7 @@ fun ModernSegmentedTabs(
 }
 
 /**
- * 苹果风格主要操作按钮 (Apple System CTA Button)
- * 启动时使用纯粹的 iOS System Blue，停止时为极简 Red Destructive
+ * 流光极光主控按钮 (Luminous Aurora Primary CTA Button)
  */
 @Composable
 fun PrimaryActionButton(
@@ -389,19 +602,54 @@ fun PrimaryActionButton(
     isActive: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val containerColor = if (isActive) AppleRed else AppleBlue
+    val shape = RoundedCornerShape(16.dp)
+    val gradientBrush = if (isActive) {
+        Brush.horizontalGradient(
+            colors = listOf(
+                Color(0xFFE11D48),
+                Color(0xFFF43F5E),
+                Color(0xFFFB7185)
+            )
+        )
+    } else {
+        Brush.horizontalGradient(
+            colors = listOf(
+                Color(0xFF2563EB),
+                Color(0xFF0284C7),
+                Color(0xFF06B6D4)
+            )
+        )
+    }
+
+    val glowColor = if (isActive) TechRose else TechCyan
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .height(48.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = containerColor,
-        shadowElevation = 0.dp
+            .height(54.dp)
+            .shadow(
+                elevation = 14.dp,
+                shape = shape,
+                ambientColor = glowColor.copy(alpha = 0.45f),
+                spotColor = glowColor.copy(alpha = 0.55f)
+            ),
+        shape = shape,
+        color = Color.Transparent
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(brush = gradientBrush, shape = shape)
+                .border(
+                    width = 1.dp,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.45f),
+                            Color.White.copy(alpha = 0.08f)
+                        )
+                    ),
+                    shape = shape
+                )
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
@@ -409,19 +657,27 @@ fun PrimaryActionButton(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     text = text,
                     color = Color.White,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = (-0.2).sp
+                    fontSize = 15.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.2.sp
                 )
             }
         }
@@ -429,8 +685,8 @@ fun PrimaryActionButton(
 }
 
 /**
- * 苹果风格功能小卡片 (Apple Action Tile)
- * 灰阶统一底色，拒绝花哨杂色
+ * 宝石玻璃智能工具磁贴 (Jewel Glass Toolbox Tile)
+ * 每个工具拥有独立主题色微光底座与精致高光边框
  */
 @Composable
 fun ToolboxTile(
@@ -439,49 +695,85 @@ fun ToolboxTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isLoading: Boolean = false,
-    accentColor: Color = TextPrimary
+    accentColor: Color = TechCyanLight
 ) {
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = AppleInputBg,
-        border = BorderStroke(0.5.dp, AppleBorder),
-        modifier = modifier.clickable(enabled = !isLoading, onClick = onClick)
+    val effectiveAccent = if (accentColor == TextPrimary) TechCyanLight else accentColor
+    val shape = RoundedCornerShape(14.dp)
+
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        effectiveAccent.copy(alpha = 0.12f),
+                        DarkInputBg.copy(alpha = 0.92f)
+                    )
+                )
+            )
+            .border(
+                width = 0.8.dp,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        effectiveAccent.copy(alpha = 0.38f),
+                        Color.White.copy(alpha = 0.06f)
+                    )
+                ),
+                shape = shape
+            )
+            .clickable(enabled = !isLoading, onClick = onClick)
+            .padding(vertical = 11.dp, horizontal = 4.dp),
+        contentAlignment = Alignment.Center
     ) {
         Column(
-            modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    color = AppleBlue,
-                    strokeWidth = 2.dp
-                )
-            } else {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = TextPrimary,
-                    modifier = Modifier.size(17.dp)
-                )
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(effectiveAccent.copy(alpha = 0.16f))
+                    .border(
+                        width = 0.6.dp,
+                        color = effectiveAccent.copy(alpha = 0.35f),
+                        shape = RoundedCornerShape(10.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = effectiveAccent,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = effectiveAccent,
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
             }
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(7.dp))
             Text(
                 text = title,
                 fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.SemiBold,
                 color = TextPrimary,
                 textAlign = TextAlign.Center,
-                letterSpacing = (-0.1).sp
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                letterSpacing = (-0.2).sp
             )
         }
     }
 }
 
 /**
- * 苹果胶囊选择器 (iOS Picker Chip)
- * 选中态为 System Blue 或高对比度浅灰，未选中态为静音深灰
+ * 流光胶囊选择器 (Luminous Glass Selector Chip)
+ * 选中态呈现晶莹渐变高光与明亮描边，未选中态为深邃内凹玻璃
  */
 @Composable
 fun TechSelectorChip(
@@ -489,27 +781,64 @@ fun TechSelectorChip(
     isSelected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    activeColor: Color = AppleBlue,
+    activeColor: Color = TechBlue,
     activeTextColor: Color = Color.White
 ) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = if (isSelected) AppleBlue else AppleInputBg,
-        border = if (isSelected) null else BorderStroke(0.5.dp, AppleBorder),
-        modifier = modifier.clickable(onClick = onClick)
-    ) {
-        Box(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = text,
-                fontSize = 11.sp,
-                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (isSelected) Color.White else TextSecondary,
-                textAlign = TextAlign.Center,
-                letterSpacing = (-0.1).sp
+    val shape = RoundedCornerShape(10.dp)
+    val bgBrush = if (isSelected) {
+        Brush.horizontalGradient(
+            colors = listOf(
+                activeColor.copy(alpha = 0.35f),
+                TechCyan.copy(alpha = 0.25f)
             )
-        }
+        )
+    } else {
+        Brush.horizontalGradient(
+            colors = listOf(
+                DarkInputBg.copy(alpha = 0.9f),
+                DarkInputBg.copy(alpha = 0.9f)
+            )
+        )
+    }
+
+    val borderBrush = if (isSelected) {
+        Brush.horizontalGradient(
+            colors = listOf(
+                activeColor.copy(alpha = 0.85f),
+                TechCyanLight.copy(alpha = 0.65f)
+            )
+        )
+    } else {
+        Brush.horizontalGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.10f),
+                Color.White.copy(alpha = 0.05f)
+            )
+        )
+    }
+
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(brush = bgBrush, shape = shape)
+            .border(
+                width = if (isSelected) 1.2.dp else 0.8.dp,
+                brush = borderBrush,
+                shape = shape
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            fontSize = 11.5.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            color = if (isSelected) activeTextColor else TextSecondary,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            letterSpacing = (-0.1).sp
+        )
     }
 }
